@@ -1,0 +1,42 @@
+<launch>
+  <node pkg="nodelet" type="nodelet" name="pcl_manager_2g_x" args="manager" output="screen" />
+  <!-- Run a VoxelGrid filter to clean NaNs and downsample the data -->
+  <node pkg="nodelet" type="nodelet" name="voxel_grid_2g_x" args="load pcl/VoxelGrid pcl_manager_2g_x" output="screen">
+    <remap from="~input" to="/robot_2/pointcloud" />
+    <remap from="~output" to="/tmp_2g" />
+    <rosparam>
+      filter_field_name: x
+      filter_limit_min: -70
+      filter_limit_max: 70
+      leaf_size: 0.1
+    </rosparam>
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="pcl_manager_2g_z" args="manager" output="screen" />
+  <!-- Run a VoxelGrid filter to clean NaNs and downsample the data -->
+  <node pkg="nodelet" type="nodelet" name="voxel_grid_2g_z" args="load pcl/VoxelGrid pcl_manager_2g_z" output="screen">
+    <remap from="~input" to="/tmp_2g" />
+    <remap from="~output" to="/tmp2_2g" />
+    <rosparam>
+      filter_field_name: z
+      filter_limit_min: -5
+      filter_limit_max: 20
+      leaf_size: 0.1
+    </rosparam>
+  </node>
+
+  <node pkg="nodelet" type="nodelet" name="pcl_manager_2g_y" args="manager" output="screen" />
+  <!-- Run a VoxelGrid filter to clean NaNs and downsample the data -->
+  <node pkg="nodelet" type="nodelet" name="voxel_grid_2g_y" args="load pcl/VoxelGrid pcl_manager_2g_y" output="screen">
+    <remap from="~input" to="/tmp2_2g" />
+    <remap from="~output" to="/robot_2/voxel_grid/output" />
+    <rosparam>
+      filter_field_name: y
+      filter_limit_min: -70
+      filter_limit_max: 70
+      leaf_size: 0.1
+    </rosparam>
+  </node>
+
+</launch>
+

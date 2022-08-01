@@ -1,0 +1,9 @@
+<library path="lib/libmulti_dof_joint_trajectory_rviz_plugins">
+  <class name="multi_dof_joint_trajectory_rviz_plugins/MultiDOFJointTrajectory"
+         type="multi_dof_joint_trajectory_rviz_plugins::MultiDOFJointTrajectoryDisplay"
+         base_class_type="rviz::Display">
+    <description>
+      A class for displaying the trajectory_msgs/MultiDOFJointTrajectory message.
+    </description>
+  </class>
+</library>

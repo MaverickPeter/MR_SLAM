@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>kindr_ros</name>
+  <version>0.3.0</version>
+  <description>The kindr_ros package</description>
+  <maintainer email="pfankhauser@anybotics.com">Peter Fankhauser</maintainer>
+  <license>BSD</license>
+  <author email="cgehring@anybotics.com">Christian Gehring</author>
+  <url>https://github.com/anybotics/kindr_ros</url>
+  <buildtool_depend>catkin</buildtool_depend>
+  <depend>kindr</depend>
+  <depend>geometry_msgs</depend>
+  <depend>tf</depend>
+  <build_export_depend>eigen</build_export_depend>
+  <test_depend>gtest</test_depend>
+</package>

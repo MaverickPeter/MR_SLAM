@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>kindr_rviz_plugins</name>
+  <version>0.3.0</version>
+  <description>
+     Plugins for visualizing kindr objects in rviz.
+  </description>
+  <maintainer email="rdiethelm@anybotics.com">Remo Diethelm</maintainer>
+  <license>BSD</license>
+  <url>https://github.com/anybotics/kindr_ros</url>
+
+  <url>none</url>
+  <author>Remo Diethelm</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>rviz</depend>
+  <depend>kindr_msgs</depend>
+  <depend>qtbase5-dev</depend>
+
+  <export>
+      <rviz plugin="${prefix}/plugin_description.xml"/>
+  </export>
+</package>

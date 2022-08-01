@@ -1,0 +1,52 @@
+<launch>
+
+  <!-- <param name="/use_sim_time" value="false" /> -->
+
+  <node pkg="global_manager" type="global_manager_node" respawn="false" name="global_manager" output="screen">
+    
+    <param name="global_map_frame" value="map"/>
+    <param name="robot_namespace" value=""/>   
+    <param name="logger_level" value="Info"/>
+
+    <!-- bool -->
+    <param name="publish_tf" value="true"/>
+    <param name="loop_closure_enable" value="true"/>
+    <param name="use_other_descriptor" value="true"/>
+    <param name="odometry_loop_enable" value="false"/>    
+    <param name="loop_detection_debug" value="false"/>
+    <param name="manual_robots_config" value="true"/>
+    <!-- <param name="keyframe_filter_enable" value="true"> -->
+    
+    <!-- string  -->
+    <param name="submap_topic" value="submap"/>
+    <param name="pose_graph_topic" value="graph"/>
+    <param name="merged_elevation_map_topic" value="merged_map"/>
+    <param name="merged_point_cloud_topic" value="merged_cloud"/>
+    <param name="descriptor_topic" value="disco"/>
+    <param name="keyframe_pc_topic" value="merged_keyframe"/> 
+
+    <!-- file and dir  -->
+    <param name="manual_config_dir" value="$(find global_manager)/cfg/real/"/>
+    <param name="elevation_map_saving_filename" value="$(find global_manager)/log/globalElevationMap.pcd"/> 
+    <param name="global_map_saving_filename" value="$(find global_manager)/log/globalMap.pcd"/>    
+    <param name="pg_saving_filename" value="$(find global_manager)/log/full_graph.g2o"/>
+    <param name="keyframe_saving_dir" value="$(find global_manager)/log/Keyframes/"/>   
+
+    <!-- specific parameters -->
+    <param name="start_robot_id" value="1"/>
+    <param name="composing_rate" value="4"/>
+    <param name="tf_publish_rate" value="10"/>
+    <param name="disco_dim" value="1024"/>
+    <param name="disco_width" value="120"/>
+    <param name="disco_height" value="40"/>
+    <param name="loop_detection_rate" value="5"/>
+    <param name="pose_graph_pub_rate" value="2"/>
+    <param name="DiSCO_dist_thres" value="17.0"/>
+    <param name="icp_iters" value="20"/>
+    <param name="icp_fitness_score" value="0.6"/>
+    <param name="voxel_leaf_size" value="0.4"/>
+    <param name="keyframe_search_candidates" value="10"/>
+    <param name="keyframe_search_radius" value="8"/>
+  </node>
+
+</launch>

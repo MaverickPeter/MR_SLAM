@@ -1,0 +1,16 @@
+robot_id: "2"
+robot_name: "robot_2"
+map_frame_id: "robot_2/odom"
+sensor_frame_id: "robot_2/os_sensor"
+robot_base_frame_id: "robot_2/os_sensor"
+track_point_frame_id: "robot_2/os_sensor"
+robot_pose_cache_size: 200
+robot_local_map_size: 1.5
+track_point_x: 0.0
+track_point_y: 0.0
+track_point_z: 0.0
+map_saving_file: "/home/mav-lab/slam_ws/test.pcd"
+submap_saving_dir: "/home/mav-lab/submaps/"
+camera_params_yaml: "/home/ysc/yq_intrinsic.yaml"
+orthomosaic_saving_dir: "/home/mav-lab/Datasets/zjg_image/"
+

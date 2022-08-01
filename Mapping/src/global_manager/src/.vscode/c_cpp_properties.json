@@ -1,0 +1,23 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "",
+        "limitSymbolsToIncludedHeaders": true
+      },
+      "includePath": [
+        "/home/client/RING_System/Mapping_ws/devel/include/**",
+        "/opt/ros/melodic/include/**",
+        "/usr/local/include/**",
+        "/home/client/RING_System/Mapping_ws/src/elevation_mapping_periodical/elevation_mapping/include/**",
+        "/home/client/RING_System/Mapping_ws/src/global_manager/include/**",
+        "/home/client/RING_System/Mapping_ws/src/kindr_ros/kindr_ros/include/**",
+        "/home/client/RING_System/Mapping_ws/src/kindr_ros/kindr_rviz_plugins/include/**",
+        "/home/client/RING_System/Mapping_ws/src/kindr_ros/multi_dof_joint_trajectory_rviz_plugins/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS"
+    }
+  ],
+  "version": 4
+}

@@ -1,0 +1,9 @@
+<library path="lib/libkindr_rviz_plugins">
+  <class name="kindr_rviz_plugins/VectorAtPosition"
+         type="kindr_rviz_plugins::VectorAtPositionDisplay"
+         base_class_type="rviz::Display">
+    <description>
+      A class for displaying the kindr vector at position message.
+    </description>
+  </class>
+</library>

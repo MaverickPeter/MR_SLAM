@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>global_manager</name>
+  <version>0.1.1</version>
+  <description>Backend of Multi-robot Mapping.</description>
+
+  <author email="xuechengxu@zju.edu.cn">Xuecheng Xu</author>
+  <maintainer email="xuechengxu@zju.edu.cn">Xuecheng Xu</maintainer>
+
+  <license>BSD</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>submap_msg</depend>
+  <depend>roscpp</depend>
+  <depend>pcl_ros</depend>
+  <depend>tf2_ros</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf_conversions</depend>
+
+  <test_depend>rosunit</test_depend>
+  <test_depend>roslaunch</test_depend>
+</package>

@@ -1,0 +1,16 @@
+{
+    "files.associations": {
+        "*.cpp": "cpp",
+        "bitset": "cpp",
+        "chrono": "cpp",
+        "algorithm": "cpp",
+        "*.tcc": "cpp",
+        "*.ipp": "cpp",
+        "tuple": "cpp",
+        "streambuf": "cpp",
+        "random": "cpp",
+        "typeindex": "cpp",
+        "typeinfo": "cpp",
+        "ostream": "cpp"
+    }
+}

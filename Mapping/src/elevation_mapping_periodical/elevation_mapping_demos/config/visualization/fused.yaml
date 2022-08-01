@@ -1,0 +1,22 @@
+grid_map_visualizations:
+
+  - name: elevation_cloud
+    type: point_cloud
+    params:
+     layer: elevation
+
+  - name: upper_bound_cloud
+    type: point_cloud
+    params:
+     layer: upper_bound
+
+  - name: lower_bound_cloud
+    type: point_cloud
+    params:
+     layer: lower_bound
+
+  - name: map_region
+    type: map_region
+    params:
+     color: 16777215
+     line_width: 0.003

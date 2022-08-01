@@ -1,0 +1,12 @@
+{
+  "python.autoComplete.extraPaths": [
+    "/home/client/RING_System/Mapping_ws/devel/lib/python2.7/dist-packages",
+    "/opt/ros/melodic/lib/python2.7/dist-packages",
+    "/usr/local/lib/python2.7/dist-packages"
+  ],
+  "python.analysis.extraPaths": [
+    "/home/client/RING_System/Mapping_ws/devel/lib/python2.7/dist-packages",
+    "/opt/ros/melodic/lib/python2.7/dist-packages",
+    "/usr/local/lib/python2.7/dist-packages"
+  ]
+}
