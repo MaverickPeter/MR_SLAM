@@ -92,6 +92,10 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
   ```sh
   Follow https://github.com/Livox-SDK/livox_ros_driver
   ```
+* [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
+  ```sh
+  Follow https://github.com/SMRT-AIST/fast_gicp
+  ```
 
 ### **Installation**
 

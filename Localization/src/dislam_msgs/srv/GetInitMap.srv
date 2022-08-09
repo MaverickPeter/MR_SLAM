@@ -1,0 +1,5 @@
+bool initState
+
+---
+sensor_msgs/PointCloud2 submap
+
