@@ -201,7 +201,7 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
 ## **Roadmap**
 
 - [ ] Optimize code.
-- [ ] Add pluggable loop closure method: [Scan Context](https://github.com/irapkaist/scancontext).
+- [ ] Add more pluggable loop closure methods.
 - [ ] Support more front-end odometry.
 
 See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a full list of proposed features (and known issues).
