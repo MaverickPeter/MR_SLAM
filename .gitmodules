@@ -1,0 +1,6 @@
+[submodule "Mapping/src/fast_gicp"]
+	path = Mapping/src/fast_gicp
+	url = https://github.com/SMRT-AIST/fast_gicp
+[submodule "LoopDetection/src/fast_gicp"]
+	path = LoopDetection/src/fast_gicp
+	url = https://github.com/SMRT-AIST/fast_gicp
