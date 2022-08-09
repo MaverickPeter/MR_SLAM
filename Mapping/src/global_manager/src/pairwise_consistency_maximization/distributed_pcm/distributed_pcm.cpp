@@ -18,6 +18,7 @@ namespace distributed_pcm {
         // Apply PCM for each pair of robots
         int total_max_clique_sizes = 0;
         int total_outliers_rejected = 0;
+
         for (int roboti = 0; roboti < dist_mappers.size(); roboti++) {
             for (int robotj = roboti+1; robotj < dist_mappers.size(); robotj++) {
                 

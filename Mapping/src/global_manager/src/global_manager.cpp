@@ -19,18 +19,23 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   private_nh.param("loop_closure_enable", loopClosureEnable_, true);
   private_nh.param("odometry_loop_enable", odometryLoopEnable_, true);
   private_nh.param("use_other_descriptor", useOtherDescriptor_, false);
-  private_nh.param("manual_robots_config", manual_robots_config_, false);
+  private_nh.param("use_refined_initials", useRefinedInitials_, false);
+  private_nh.param("manual_robots_config", manualRobotConfig_, false);
+  private_nh.param("enable_elevation_mapping", enableElevationMapping_, false);
 
   private_nh.param("disco_dim", disco_dim_, 1.0);
   private_nh.param("icp_iters", icp_iters_, 10.0);
+  private_nh.param("submap_size", submap_size_, 5.0);
   private_nh.param("disco_width", disco_width_, 120.0);
   private_nh.param("start_robot_id", start_robot_id_, 1.0);
   private_nh.param("disco_height", disco_height_, 40.0);
   private_nh.param("composing_rate", composing_rate_, 1.0);
   private_nh.param("tf_publish_rate", tf_publish_rate_, 1.0);
-  private_nh.param("voxel_leaf_size", voxel_leaf_size_, 0.3);
+  private_nh.param("icp_filter_size", icp_filter_size_, 0.4);
   private_nh.param("loop_detection_rate", loop_detection_rate_, 10.0);
   private_nh.param("pose_graph_pub_rate", pose_graph_pub_rate_, 10.0);
+  private_nh.param("submap_voxel_leaf_size", submap_voxel_leaf_size_, 0.3);
+  private_nh.param("globalmap_voxel_leaf_size", globalmap_voxel_leaf_size_, 0.3);
   private_nh.param("keyframe_search_candidates", keyframe_search_candidates_, 20.0);
   private_nh.param("keyframe_search_radius", historyKeyframeSearchRadius, 10.0);
 
@@ -42,6 +47,7 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   private_nh.param<std::string>("submap_topic", robot_submap_topic_, "submap");
   private_nh.param<std::string>("descriptor_topic", robot_disco_topic_, "disco");
   private_nh.param<std::string>("keyframe_pc_topic", keyframe_pc_topic_, "keyframe");
+  private_nh.param<std::string>("registration_method", registration_method_, "FAST_GICP");
   private_nh.param<std::string>("merged_elevation_map_topic", merged_elevation_map_topic, "map");
   private_nh.param<std::string>("merged_point_cloud_topic", merged_pointcloud_topic, "map");
   private_nh.param<std::string>("pg_saving_filename", pg_saving_filename_, "./fullGraph.g2o");
@@ -57,16 +63,22 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   DISCO_DIM = (int)disco_dim_;
 
   /* Publishing */
-  merged_elevation_map_publisher_ = node_.advertise<PointCloud>(merged_elevation_map_topic, 1);
-  merged_pointcloud_publisher_ = node_.advertise<PointCloud>(merged_pointcloud_topic, 1);
-  pose_graph_publisher_ = node_.advertise<visualization_msgs::MarkerArray>(pose_graph_topic, 1);
-  optimizing_state_publisher_ = node_.advertise<std_msgs::Bool>(opt_state_topic, 1);
+  merged_elevation_map_publisher_ = node_.advertise<PointCloud>(merged_elevation_map_topic, 10);
+  merged_pointcloud_publisher_ = node_.advertise<PointCloud>(merged_pointcloud_topic, 10);
+  query_cloud_publisher_ = node_.advertise<PointCloud>("/query_cloud", 10);
+  database_cloud_publisher_ = node_.advertise<PointCloud>("/database_cloud", 10);
+  aligned_cloud_publisher_ = node_.advertise<PointCloud>("/aligned_cloud", 10);
+  pose_graph_publisher_ = node_.advertise<visualization_msgs::MarkerArray>(pose_graph_topic, 10);
+  optimizing_state_publisher_ = node_.advertise<std_msgs::Bool>(opt_state_topic, 10);
 
   map_saving_subscriber_ = private_nh.subscribe("/map_saving", 1, &GlobalManager::mapSaving, this);
-  loop_info_subscriber_ = private_nh.subscribe("/loop_info", 10, &GlobalManager::processLoopClosure, this);
+  if(useRefinedInitials_)
+    loop_info_subscriber_ = private_nh.subscribe("/loop_info", 100, &GlobalManager::processLoopClosureWithFinePose, this);
+  else
+    loop_info_subscriber_ = private_nh.subscribe("/loop_info", 100, &GlobalManager::processLoopClosureWithInitials, this);
 
   // Get all config filenames
-  if(manual_robots_config_){
+  if(manualRobotConfig_){
     getFileNames(manual_config_dir_, configFiles);
     readConfigs(configFiles, initPoses, start_robot_id_);
   }
@@ -83,9 +95,12 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
 
   // Init edge type
   gtsam::Vector VectorPrior(6);
-  VectorPrior << 1e-6, 1e-6, 1e-6, 1e-4, 1e-4, 1e-4;
-  // VectorPrior << 1, 1, 1, 1, 1, 1;
+  VectorPrior << 1e-15, 1e-15, 1e-15, 1e-15, 1e-15, 1e-15;
   priorNoise = noiseModel::Diagonal::Variances(VectorPrior);
+
+  gtsam::Vector VectorLoop(6);
+  VectorLoop << 1e-1, 1e-1, 1e-1, 1e-2, 1e-2, 1e-2;
+  loopNoise = noiseModel::Diagonal::Variances(VectorLoop);
 
   gtsam::Vector VectorOdom(6);
   VectorOdom << 1, 1, 1, 1, 1, 1;
@@ -106,11 +121,10 @@ GlobalManager::~GlobalManager()
 void GlobalManager::mapSaving(const std_msgs::Bool::ConstPtr& savingSignal)
 {
   if(savingSignal->data){
-    // Get the graph
     vector<int> initial_size;
     initial_size = constructOptimizer(true);
     GraphAndValues fullGraphAndValues = readFullGraph();
-    std::pair<Values, vector<int>> correctedPosePair = correctPoses(false);
+    std::pair<Values, vector<int>> correctedPosePair = correctPoses();
     Values fullInitial = correctedPosePair.first;
 
     savingElevationMap();
@@ -144,6 +158,12 @@ void GlobalManager::savingGlobalMap(Values fullInitial)
       }
     }
   }
+  lock.unlock();
+  
+  pcl::VoxelGrid<PointTI> voxel;
+  voxel.setInputCloud (globalMap.makeShared());
+  voxel.setLeafSize (globalmap_voxel_leaf_size_, globalmap_voxel_leaf_size_, globalmap_voxel_leaf_size_);
+  voxel.filter (globalMap);
   pcl::io::savePCDFile(global_map_saving_filename_, globalMap);
 }
 
@@ -178,14 +198,14 @@ void GlobalManager::savingPoseGraph()
   writeG2o(fullGraph, fullInitial, pg_saving_filename_);
   cout << "fullInitial.size() = " << fullInitial.size() << endl;
 
-  std::pair<Values, vector<int>> correctedPosePair = correctPoses(true);
+  std::pair<Values, vector<int>> correctedPosePair = correctPoses();
 
   GraphAndValues fullGraphAndValuesOpt = readFullGraph();
   NonlinearFactorGraph fullGraphOpt = *(fullGraphAndValuesOpt.first);
   Values fullInitialOpt = *(fullGraphAndValuesOpt.second);
   
   // Write full graph
-  writeG2o(fullGraphOpt, fullInitialOpt, "/home/client/graph/full_graph_optimized.g2o");
+  writeG2o(fullGraphOpt, fullInitialOpt, "/home/client/graph/full_graph_optimized_NCLT.g2o");
   cout << "optimized fullInitial.size() = " << fullInitialOpt.size() << endl;
 }
 
@@ -210,12 +230,12 @@ void GlobalManager::savingKeyframes(Values fullInitial)
     for(int i = 0; i < subscription.keyframes.size(); i++){
       int robotid = subscription.robot_id - start_robot_id_;
       uint64_t g2oid = robotID2Key(robotid) + i + 1;
-      
       if(fullInitial.exists(g2oid)){
         int newid = g2oid - robotID2Key(robotid) + robotConsecutiveID;
 
         stringstream ss;
-        ss << setw(6) << setfill('0') << newid ;
+        // ss << setw(6) << setfill('0') << newid ;
+        ss << g2oid;
         string newidstr;
         ss >> newidstr;
 
@@ -229,7 +249,7 @@ void GlobalManager::savingKeyframes(Values fullInitial)
         Eigen::Isometry3f currPose = Pose3toIsometry(currentPose);
 
         std::ofstream ofs(directory + "/data");
-        // ofs << "stamp " << newid << "\n";
+        ofs << "stamp " << subscription.timestamps[i].toNSec() << "\n";
 
         ofs << "estimate\n";
         ofs << currPose.matrix() << "\n";
@@ -299,7 +319,7 @@ void GlobalManager::discovery()
         *** Init some storage variables
         ***********************************/
         // initPoses
-        if(!manual_robots_config_)
+        if(!manualRobotConfig_)
           initPoses.push_back(Eigen::Isometry3f::Identity());
 
         // tf
@@ -347,7 +367,7 @@ void GlobalManager::discovery()
 
         // map tf
         std::lock_guard<std::mutex> mapTFLock(map_tf_mutex);
-        if(!manual_robots_config_){
+        if(!manualRobotConfig_){
           currentRef.emplace_back(Eigen::Isometry3f::Identity());
           mapTF.emplace_back(Eigen::Isometry3f::Identity());
         }else{
@@ -394,7 +414,7 @@ void GlobalManager::discovery()
       map_topic = ros::names::append(robot_name, robot_submap_topic_);
       ROS_INFO("\033[1;31m Subscribing to MAP topic: %s \033[0m", map_topic.c_str());
       subscription.map_sub = node_.subscribe<dislam_msgs::SubMap>(
-          map_topic, 1, [this, &subscription](const dislam_msgs::SubMapConstPtr& msg) {
+          map_topic, 10, [this, &subscription](const dislam_msgs::SubMapConstPtr& msg) {
             mapUpdate(msg, subscription);
       });
 
@@ -402,7 +422,7 @@ void GlobalManager::discovery()
       disco_topic = ros::names::append(robot_name, robot_disco_topic_);
       ROS_INFO("\033[1;33m Subscribing to DiSCO topic: %s \033[0m", disco_topic.c_str());
       subscription.disco_sub = node_.subscribe<dislam_msgs::DiSCO>(
-          disco_topic, 1, [this, &subscription](const dislam_msgs::DiSCOConstPtr& msg) {
+          disco_topic, 10, [this, &subscription](const dislam_msgs::DiSCOConstPtr& msg) {
             discoUpdate(msg, subscription);
       });
 
@@ -553,18 +573,19 @@ void GlobalManager::loopClosingThread()
     ROS_DEBUG("performLoopClosure: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
     
     auto update_start = system_clock::now();
-    
-    if(aLoopIsClosed){
+
+    if(aLoopIsClosed || (loop_num >= 2)){
       auto correct_start = system_clock::now();
       
-      std::pair<Values, vector<int>> correctedPosePair = correctPoses(false);
+      std::pair<Values, vector<int>> correctedPosePair = correctPoses();
       
       auto correct_end = system_clock::now();
       auto correct_duration = duration_cast<microseconds>(correct_end - correct_start);
-      ROS_DEBUG("correctPoses: %lfs", double(correct_duration.count()) * microseconds::period::num / microseconds::period::den);
+      ROS_INFO("correctPoses: %lfs", double(correct_duration.count()) * microseconds::period::num / microseconds::period::den);
       
       updateTransform(correctedPosePair);
       mapNeedsToBeCorrected = true;
+      keyframeUpdated = false;
     }
     
     auto update_end = system_clock::now();
@@ -575,38 +596,117 @@ void GlobalManager::loopClosingThread()
 }
 
 
-/**
- * @brief Process loop closure info given by loop detection node.
- * @details add edges to the maintained graph using subscribed loop info
+/*
+ * Perform geometry check in queue
  */
-void GlobalManager::processLoopClosure(const dislam_msgs::LoopsConstPtr& msg)
+void GlobalManager::geometryCheckThread()
+{
+  // ros::Rate rate(loop_detection_rate_);
+  while(1){
+    // rate.sleep();
+    auto start = system_clock::now();
+    
+    if(!loops_buf.empty())
+    {
+      auto interloop = loops_buf.front();
+
+      uint64_t id1 = std::get<0>(interloop);
+      uint64_t id2 = std::get<1>(interloop);
+      Eigen::Isometry3d initPose = std::get<2>(interloop);
+
+      // ICP check, return icp fitness score with transform matrix
+      auto icpResult = ICPCheck(id1, id2, initPose);
+
+      float icpFitnessScore = icpResult.first;
+      if(icpFitnessScore == 0){
+        continue;
+      }else if(icpFitnessScore == -1){
+        loops_buf.pop();
+        auto end = system_clock::now();
+        auto duration = duration_cast<microseconds>(end - start);
+        ROS_WARN("geometry check: %lfs, with queue %d left!", double(duration.count()) * microseconds::period::num / microseconds::period::den, loops_buf.size());
+        continue;
+      }
+
+      // icp pose is the inverse of relative pose
+      Pose3 finalPose3 = icpResult.second;
+      finalPose3 = finalPose3.inverse();
+
+      double loopNoiseScore = 0.5; // constant is ok...
+      gtsam::Vector robustNoiseVector6(6); // gtsam::Pose3 factor has 6 elements (6D)
+      robustNoiseVector6 << loopNoiseScore, loopNoiseScore, loopNoiseScore, loopNoiseScore, loopNoiseScore, loopNoiseScore;
+      noiseModel::Base::shared_ptr robustLoopNoise;
+      robustLoopNoise = gtsam::noiseModel::Robust::Create(
+                      gtsam::noiseModel::mEstimator::GemanMcClure::Create(1), // optional: replacing Cauchy by DCS or GemanMcClure is okay but Cauchy is empirically good.
+                      gtsam::noiseModel::Diagonal::Variances(robustNoiseVector6) );
+      
+      if(id1 < id2){
+        NonlinearFactor::shared_ptr interRobotFactorID1(new BetweenFactor<Pose3>(id1, id2, finalPose3, loopNoise));
+        graphAndValuesVec[Key2robotID(id1)].first->push_back(interRobotFactorID1);
+        graphAndValuesVec[Key2robotID(id2)].first->push_back(interRobotFactorID1);
+        // Add to graph visualization
+        cout << " add edge into current graph " << Key2robotID(id2) << endl;
+        std::pair<uint64_t, uint64_t> edge = make_pair(id1, id2);
+        loopEdgePairs_.push_back(edge);
+        loop_num++;
+      }else{
+        NonlinearFactor::shared_ptr interRobotFactorID2(new BetweenFactor<Pose3>(id2, id1, finalPose3.inverse(), loopNoise));
+        graphAndValuesVec[Key2robotID(id1)].first->push_back(interRobotFactorID2);
+        graphAndValuesVec[Key2robotID(id2)].first->push_back(interRobotFactorID2);
+        // Add to graph visualization
+        cout << " add edge into current graph inverse id2: " << id2 << " id1: " << id1 << endl;
+        std::pair<uint64_t, uint64_t> edge = make_pair(id2, id1);
+        loopEdgePairs_.push_back(edge);
+        loop_num++;
+      }
+      loops_buf.pop();
+          
+      if(loop_num >= 2)
+        aLoopIsClosed = true;
+
+      auto end = system_clock::now();
+      auto duration = duration_cast<microseconds>(end - start);
+      ROS_WARN("geometry check: %lfs, with queue %d left!", double(duration.count()) * microseconds::period::num / microseconds::period::den, loops_buf.size());
+    }
+  }
+  ROS_ERROR("ROS down !!!");
+}
+
+
+/**
+ *  Process loop closure info given by loop detection node which provide icp aligned pose.
+ */
+void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConstPtr& msg)
 {
   ROS_INFO("\033[1;32m received loop update \033[0m");
 
   // Get all loop infos
   std::vector<dislam_msgs::Loop> interloops = msg->Loops;
-  // string ddd = "/home/client/graph/00.g2o";
-  // writeG2o(*graphAndValuesVec[0].first, *graphAndValuesVec[0].second, ddd);
-  // string dd1 = "/home/client/graph/01.g2o";
-  // writeG2o(*graphAndValuesVec[1].first, *graphAndValuesVec[1].second, dd1);
-  // string dd2 = "/home/client/graph/02.g2o";
-  // writeG2o(*graphAndValuesVec[2].first, *graphAndValuesVec[2].second, dd2);
 
   std::lock_guard<std::mutex> lock(graph_mutex_);
+
   // Iter all loop infos and get ready for pose graph insertion
   for(auto iter : interloops){
     uint64_t id1 = iter.id0;
     uint64_t id2 = iter.id1;
-    if(Key2robotID(id1) == Key2robotID(id2))
-      break;
 
     Eigen::Quaternionf factorPoseq(iter.pose.orientation.w, iter.pose.orientation.x, iter.pose.orientation.y, iter.pose.orientation.z);
     Eigen::Isometry3f factorPose(factorPoseq);
     factorPose.pretranslate(Eigen::Vector3f(iter.pose.position.x, iter.pose.position.y, iter.pose.position.z));
     Pose3 factorPose3 = Pose3(((Eigen::Isometry3d)factorPose).matrix());
-    
+   
+  
+    float robustNoiseScore = 0.5; // constant is ok...
+    gtsam::Vector robustNoiseVector6(6); 
+    robustNoiseVector6 << robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore;
+    noiseModel::Base::shared_ptr robustConstraintNoise; 
+    robustConstraintNoise = gtsam::noiseModel::Robust::Create(
+        gtsam::noiseModel::mEstimator::Cauchy::Create(1), // optional: replacing Cauchy by DCS or GemanMcClure, but with a good front-end loop detector, Cauchy is empirically enough.
+        gtsam::noiseModel::Diagonal::Variances(robustNoiseVector6)
+    ); // - checked it works. but with robust kernel, map modification may be delayed (i.e,. requires more true-positive loop factors)
+
     if(id1 < id2){
-      NonlinearFactor::shared_ptr interRobotFactorID1(new BetweenFactor<Pose3>(id1, id2, factorPose3, odometryNoise));
+      NonlinearFactor::shared_ptr interRobotFactorID1(new BetweenFactor<Pose3>(id1, id2, factorPose3, loopNoise));
       graphAndValuesVec[Key2robotID(id1)].first->push_back(interRobotFactorID1);
       graphAndValuesVec[Key2robotID(id2)].first->push_back(interRobotFactorID1);
       // Add to graph visualization
@@ -615,7 +715,7 @@ void GlobalManager::processLoopClosure(const dislam_msgs::LoopsConstPtr& msg)
       loopEdgePairs_.push_back(edge);
       loop_num++;
     }else{
-      NonlinearFactor::shared_ptr interRobotFactorID2(new BetweenFactor<Pose3>(id2, id1, factorPose3.inverse(), odometryNoise));
+      NonlinearFactor::shared_ptr interRobotFactorID2(new BetweenFactor<Pose3>(id2, id1, factorPose3.inverse(), loopNoise));
       graphAndValuesVec[Key2robotID(id1)].first->push_back(interRobotFactorID2);
       graphAndValuesVec[Key2robotID(id2)].first->push_back(interRobotFactorID2);
       // Add to graph visualization
@@ -625,10 +725,36 @@ void GlobalManager::processLoopClosure(const dislam_msgs::LoopsConstPtr& msg)
       loop_num++;
     }
   }
-  // string distOptimized = "/home/client/graph/0.g2o";
-  // writeG2o(*graphAndValuesVec[0].first, *graphAndValuesVec[0].second, distOptimized);
+
   if(loop_num >= 2)
     aLoopIsClosed = true;
+}
+
+
+/**
+ *  Process loop closure info given by loop detection node which provide only coarse initial pose.
+ */
+void GlobalManager::processLoopClosureWithInitials(const dislam_msgs::LoopsConstPtr& msg)
+{
+  ROS_INFO("\033[1;32m received loop update \033[0m");
+
+  // Get all loop infos
+  std::vector<dislam_msgs::Loop> interloops = msg->Loops;
+
+  std::lock_guard<std::mutex> lock(graph_mutex_);
+
+  // Iter all loop infos and get ready for pose graph insertion
+  for(auto iter : interloops){
+    uint64_t id1 = iter.id0;
+    uint64_t id2 = iter.id1;
+
+    Eigen::Quaterniond initPoseq(iter.pose.orientation.w, iter.pose.orientation.x, iter.pose.orientation.y, iter.pose.orientation.z);
+    Eigen::Isometry3d initPose(initPoseq);
+    initPose.pretranslate(Eigen::Vector3d(iter.pose.position.x, iter.pose.position.y, iter.pose.position.z));
+    
+    std::tuple<uint64, uint64, Eigen::Isometry3d> loop;
+    loops_buf.push(make_tuple(id1,id2,initPose));
+  }
 }
 
 
@@ -659,7 +785,6 @@ void GlobalManager::performLoopClosure()
     if(subscription.disco_base.size() < 2 || subscription.submaps.size() < 2)
       return;
 
-    // cout << "subscription.disco_base.size(): " << subscription.disco_base.size() << " subscription.submaps.size(): " << subscription.submaps.size() << endl;
     if(subscription.disco_base.size() > subscription.submaps.size()){// sync reason: keyframe and disco are not always synchronized
       DiSCOFFT curr_fft;
       std::vector<float> curr_desc;
@@ -716,12 +841,8 @@ void GlobalManager::performLoopClosure()
     auto currentRobotHandle = subscriptions_.begin();
     std::advance(currentRobotHandle, nrRobots - currentRobotIDinStack - 1);
     pcl::copyPointCloud(*currentRobotHandle->keyframes[currentDiSCOID], *currentKeyframe);
-    // auto currentPose = currentRobotHandle->trajectory[currentDiSCOID];
     auto currentYaw = currentRobotHandle->cloudKeyPoses6D->points.back().yaw;
     obslock.unlock();
-
-    // cout << "current Robot: " << realRobotID << " current DiSCO ID: " << currentDiSCOID;
-    // cout << " current traj x: " << currentPose(0,3) << " y: " << currentPose(1,3) << " z: " << currentPose(2,3) << endl;
 
     bool isValidloopFactor = false;
     auto interLoopRobots = std::get<0>(*loopInfo); // robot index
@@ -745,15 +866,8 @@ void GlobalManager::performLoopClosure()
         auto interLoopRobotHandle = subscriptions_.begin();
         std::advance(interLoopRobotHandle, nrRobots - interLoopRobotIDinStack - 1);
         pcl::copyPointCloud(*interLoopRobotHandle->keyframes[queryDiSCOIndex], *queryKeyframe);
-        // auto queryPose = interLoopRobotHandle->trajectory[queryDiSCOIndex]; 
         obslock.unlock();
-
-        // cout << "query Robot: " << realInterLoopRobotID << " query DiSCO ID: " << queryDiSCOIndex;
-        // cout << " query traj x: " << queryPose(0,3) << " y: " << queryPose(1,3) << " z: " << queryPose(2,3) << endl;
-
         auto start = system_clock::now();
-
-        // pcl::io::savePCDFileASCII ("/home/client/graph/query_"+ to_string(realInterLoopRobotID) + "_" + to_string(queryDiSCOIndex) + "_" + to_string(relPoses[i].intensity) + ".pcd", *queryKeyframe);
 
         // DiSCO get the relative angle between two scans
         float relative_x = relPoses[i].x*cos(currentYaw) + relPoses[i].y*sin(currentYaw);
@@ -764,26 +878,16 @@ void GlobalManager::performLoopClosure()
         pcl::transformPointCloud(*queryKeyframe, *queryKeyframeTransformed, transformMatrix); 
 
         cout << "relative angle: " << relPoses[i].intensity << " relative_x: " << relative_x << " relative y: " << relative_y << " relative z: " << relPoses[i].z << endl;
-        // pcl::io::savePCDFileASCII ("/home/client/graph/current_"+ to_string(realRobotID) + "_" + to_string(currentDiSCOID) + "_" + to_string(relPoses[i].intensity) + ".pcd", *currentKeyframe);
-        // pcl::io::savePCDFileASCII ("/home/client/graph/query_after_"+ to_string(realInterLoopRobotID) + "_" + to_string(queryDiSCOIndex) + "_" + to_string(relPoses[i].intensity) + ".pcd", *queryKeyframeTransformed);
 
         auto end = system_clock::now();
         auto duration = duration_cast<microseconds>(end - start);
-        // cout << "Downsampling spend " << double(duration.count()) * microseconds::period::num / microseconds::period::den << "s" << endl;
-        // cout << "Downsampled cloud size: current - " << currentKeyframe->size() << " query - " << queryKeyframe->size() << endl;
         start = system_clock::now();
-
-        // PointCloudINPtr currentKeyframeNormal(new PointCloudIN);
-        // PointCloudINPtr queryKeyframeNormal(new PointCloudIN);
-        // addNormal(currentKeyframe, currentKeyframeNormal);
-        // addNormal(queryKeyframe, queryKeyframeNormal);
 
         pcl::IterativeClosestPoint<PointTI, PointTI> icp;
         icp.setMaxCorrespondenceDistance(2.0);
         icp.setMaximumIterations((int)icp_iters_);
         icp.setTransformationEpsilon(1e-3);
         icp.setEuclideanFitnessEpsilon(1e-3);
-        // icp.setRANSACIterations(0);
         icp.setInputSource(currentKeyframe);
         icp.setInputTarget(queryKeyframeTransformed);
         PointCloudIPtr unused_result(new PointCloudI);
@@ -792,10 +896,7 @@ void GlobalManager::performLoopClosure()
         end = system_clock::now();
         duration = duration_cast<microseconds>(end - start);
         cout <<  "ICP align spend " << double(duration.count()) * microseconds::period::num / microseconds::period::den << "s" << endl;
-
-        std::cout << "[DSC] ICP fit score: " << icp.getFitnessScore() << std::endl;
-        // string distOptimized = "/home/client/graph/" + boost::lexical_cast<string>(currentRobotIDinStack) + "Graph_origin.g2o";
-        // writeG2o(*graphAndValuesVec[currentRobotIDinStack].first, *graphAndValuesVec[currentRobotIDinStack].second, distOptimized);
+        cout << "[DSC] ICP fit score: " << icp.getFitnessScore() << endl;
         
         // check ICP result
         if ( icp.hasConverged() == false || icp.getFitnessScore() > acceptedKeyframeFitnessScore ) {
@@ -859,13 +960,6 @@ void GlobalManager::performLoopClosure()
             }
 
             std::cout << "[DSC] Add loop factor into the graph" << std::endl; 
-            // string distOptimized = "/home/client/graph/" + boost::lexical_cast<string>(currentRobotIDinStack) + "Graph_origin.g2o";
-            // writeG2o(*graphAndValuesVec[currentRobotIDinStack].first, *graphAndValuesVec[currentRobotIDinStack].second, distOptimized);
-            // string distOptimized_inter = "/home/client/graph/" + boost::lexical_cast<string>(interLoopRobotIDinStack) + "Graph_origin.g2o";
-            // writeG2o(*graphAndValuesVec[interLoopRobotIDinStack].first, *graphAndValuesVec[interLoopRobotIDinStack].second, distOptimized_inter);
-        
-            // pcl::io::savePCDFileASCII ("/home/client/graph/current_" + to_string(currentDiSCOID) + ".pcd", *currentKeyframe);
-            // pcl::io::savePCDFileASCII ("/home/client/graph/query_" + to_string(queryDiSCOIndex) + ".pcd", *queryKeyframe);
           }
           
           // Enable loop
@@ -1031,83 +1125,8 @@ std::tuple<std::vector<int>, std::vector<int>, std::vector<pcl::PointXYZI>> Glob
         RSclosestHistoryFrameID = curMinID;
       }
     }
-
-    // Single robot loop
-    // if(RSclosestHistoryFrameID != -1){
-    //   closestRobotID.emplace_back(currentRobotIDinStack);
-    //   discoIndex.emplace_back(RSclosestHistoryFrameID);
-    //   pcl::PointXYZI relPose;
-    //   relPose.x = 0.0;
-    //   relPose.y = 0.0;
-    //   relPose.z = 0.0;
-    //   relPose.intensity = 0.0;
-    //   relPoses.emplace_back(relPose);  
-    //   cout << "[RS Loop found] btn current robot " << realRobotID << " index: " << curr_ind << " and robot " << realRobotID << " index: " << discoIndex.back() << " interRobotIDinStack: " << interRobotIDinStack << endl;
-    // }
   }
 
-  
-
-  // // First one is itself, iter all other candidates
-  // for(int candidate_iter_idx = 1; candidate_iter_idx < NUM_CANDIDATES_FROM_TREE; candidate_iter_idx++){
-    
-  //   if(kd_result[candidate_iter_idx].distance < DISCO_DIST_THRES){
-  //     int iterRobotIDinSub = nrRobots;
-
-  //     // Find which the candidate belongs to which robot
-  //     std::unique_lock<std::mutex> lock(subscriptions_mutex_);
-  //     for(auto& subscription: subscriptions_){
-  //       vector<int>::iterator it = find(subscription.disco_index.begin(), subscription.disco_index.end(), kd_result[candidate_iter_idx].coord_index);
-        
-  //       // Find which the candidate belongs to which robot, and return robotID and index in this robot map stack
-  //       if(it != subscription.disco_index.end()){
-  //         if((it - subscription.disco_index.begin()) < curr_ind){
-  //           int retrieved_ind = it - subscription.disco_index.begin();
-  //           int realIterRobotID = subscription.robot_id;
-            
-  //           // if(curr_ind != (retrieved_ind + 1)){
-  //           // closestRobotID.emplace_back(subscription.robot_id);
-  //           closestRobotID.emplace_back(iterRobotIDinSub - 1);
-  //           discoIndex.emplace_back(retrieved_ind);
-
-  //           DiSCOFFT closestDiSCO = subscription.disco_fft[discoIndex.back()];
-  //           float relAngle = calcRelOri(curr_fft, closestDiSCO);
-  //           relAngles.emplace_back(relAngle);
-  //           // }
-
-  //           std::cout.precision(5);
-  //           cout << "[Loop found] Nearest distance: "  << kd_result[candidate_iter_idx].distance << " btn current robot " << realRobotID << " index: " << curr_ind << " and robot " << realIterRobotID << " index: " << discoIndex.back() << endl;
-  //           break;
-  //         }
-  //       }
-  //       iterRobotIDinSub --;
-  //     }
-  //     lock.unlock();
-  //   }else{
-  //     // Report not a loop and return -1 (default value for no loop)
-  //     int iterRobotIDinSub = nrRobots;
-
-  //     // Find which the candidate belongs to which robot
-  //     std::unique_lock<std::mutex> lock(subscriptions_mutex_);
-  //     for(auto& subscription: subscriptions_){
-  //       vector<int>::iterator it = find(subscription.disco_index.begin(), subscription.disco_index.end(), kd_result[candidate_iter_idx].coord_index);
-        
-  //       // Find which the candidate belongs to which robot, and return robotID and index in this robot map stack
-  //       if(it != subscription.disco_index.end()){          
-  //         int notFound = -1;
-  //         closestRobotID.emplace_back(notFound);
-  //         discoIndex.emplace_back(notFound);
-  //         relAngles.emplace_back(notFound);  
-  //         std::cout.precision(5); 
-  //         int realIterRobotID = robotIDStack[iterRobotIDinSub-1];
-  //         cout << "[Not A Loop] Nearest distance: "  << kd_result[candidate_iter_idx].distance << " btn current robot " << realRobotID << " index: " << curr_ind << " and robot " << realIterRobotID << " index: " << discoIndex.back() << endl;
-  //         break;
-  //       }
-  //       iterRobotIDinSub --;
-  //     }
-  //     lock.unlock();
-  //   }
-  // }
   
   int candidate_iter_idx = 1;
   int inter_loop_num = 0;
@@ -1269,7 +1288,7 @@ vector<int> GlobalManager::constructOptimizer(bool savingMode)
  * @brief Correct pose using merged pose graph.
  * @details When pose graph is constructed, they are optimized 
  */
-std::pair<Values, vector<int>> GlobalManager::correctPoses(bool updateGraph)
+std::pair<Values, vector<int>> GlobalManager::correctPoses()
 {  
   disconnectedGraph = false;
 
@@ -1444,15 +1463,6 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses(bool updateGraph)
       optState.data = true;
       optimizing_state_publisher_.publish(optState);
 
-      if(updateGraph){
-        // Update graphAndValuesVec
-        for(int i = 0; i < nrRobots; i++){
-          for(int j = 0; j < initial_size[i]; j++){
-            (*(graphAndValuesVec[i].second)).update(robotID2Key(i) + j, centralized.at<Pose3>(robotID2Key(i) + j));
-          }
-        }
-      }
-
       return make_pair(centralized, initial_size);
       cout << "Optimization done " << endl;
     }
@@ -1483,7 +1493,6 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses(bool updateGraph)
   }
   aLoopIsClosed = false;
 }
-
 
 /*
  * Read full graph from graphandvalues vec
@@ -1569,7 +1578,7 @@ void GlobalManager::updateTransform(const std::pair<Values, std::vector<int>> co
       // First of the originMapTF is not identity matrix
       optMapTF[i][j] = robotPoseIso * originMapTF[i][j].inverse();
     }
-    // Calculate transformations
+    // Convert format of transformations
     Eigen::Isometry3f optrobotEnd = Pose3toIsometry(robotEnd);
     Eigen::Isometry3f optrobotBegin = Pose3toIsometry(robotBegin);
 
@@ -1578,6 +1587,14 @@ void GlobalManager::updateTransform(const std::pair<Values, std::vector<int>> co
     // Fill the vacant while performing loop closing
     for(int j = querySize[i]; j < optMapTF.size(); j++){
       optMapTF[i][j] = currentRef[i];
+      Eigen::Isometry3f trajPose = Eigen::Isometry3f::Identity();
+      trajPose(0,3) = trajPointsVec_[i][j].x;
+      trajPose(1,3) = trajPointsVec_[i][j].y;
+      trajPose(2,3) = trajPointsVec_[i][j].z;
+      trajPose = currentRef[i] * trajPose;
+      trajPointsVec_[i][j].x = trajPose(0,3);
+      trajPointsVec_[i][j].y = trajPose(1,3);
+      trajPointsVec_[i][j].z = trajPose(2,3);
     }
   }
 
@@ -1656,7 +1673,6 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
 {
   ROS_INFO("\033[1;31m received map update from: %s \033[0m", subscription.robot_name.c_str());
   // cout << "subscription.robot_id: " << subscription.robot_id << endl;
-
   std::lock_guard<std::mutex> lock(subscription.mutex);
   
   // Found the right index
@@ -1684,14 +1700,20 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
   // Transform msg type
   pcl::fromROSMsg(msg->submap, *_submap_in);
   pcl::fromROSMsg(msg->keyframePC, *_laser_cloud_in);
-
-  // Add submap and keyframe point cloud to robotHandle
-  subscription.submaps.emplace_back(_submap_in);
+  ros::Time timestamp = msg->keyframePC.header.stamp;
   
   pcl::VoxelGrid<PointTI> voxel;
   voxel.setInputCloud (_laser_cloud_in);
-  voxel.setLeafSize (voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
+  voxel.setLeafSize (submap_voxel_leaf_size_, submap_voxel_leaf_size_, submap_voxel_leaf_size_);
   voxel.filter (*_laser_cloud_in);
+
+  // Add submap and keyframe point cloud to robotHandle
+  pcl::VoxelGrid<PointT> voxelSubmap;
+  voxelSubmap.setInputCloud (_submap_in);
+  voxelSubmap.setLeafSize (submap_voxel_leaf_size_, submap_voxel_leaf_size_, submap_voxel_leaf_size_);
+  voxelSubmap.filter (*_submap_in);
+
+  subscription.submaps.emplace_back(_submap_in);
 
   // Remove ground points
   pcl::PassThrough<pcl::PointXYZI> pass;
@@ -1699,6 +1721,10 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
   pass.setFilterFieldName ("z");
   pass.setFilterLimits (-1.0, 30);
   pass.filter (*_laser_cloud_in);
+
+  for(int i = 0; i < _laser_cloud_in->size(); i++){
+    _laser_cloud_in->points[i].intensity = robotid * 30;
+  }
 
   // Add to map TF stack
   std::unique_lock<std::mutex> maplock(map_mutex);
@@ -1718,10 +1744,6 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
   subscription.transformTobeMapped[3] = msg->pose.position.x;
   subscription.transformTobeMapped[4] = msg->pose.position.y;
   subscription.transformTobeMapped[5] = msg->pose.position.z;
-  
-  for(int i = 0; i < _laser_cloud_in->size(); i++){
-    _laser_cloud_in->points[i].intensity = robotid * 30;
-  }
 
   // Add graph factor to robotHandle
   if (subscription.cloudKeyPoses3D->points.empty()){
@@ -1730,6 +1752,7 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
     // Add keyframe to robot handle
     subscription.keyframes.emplace_back(_laser_cloud_in);
     subscription.lastKeyframe = *_laser_cloud_in;
+    subscription.timestamps.emplace_back(timestamp);
     
     // Graph preparation
     GraphPtr graph(new NonlinearFactorGraph);
@@ -1740,7 +1763,7 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
     uint64_t id0, id1;
 
     // std::lock_guard<std::mutex> mapTFLock(map_tf_mutex);
-    if(manual_robots_config_){
+    if(manualRobotConfig_){
       // TF with manual setup
       mapTF[robotid] = initPoses[robotid];
       currentRef[robotid] = initPoses[robotid];
@@ -1790,20 +1813,8 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
     auto start = system_clock::now();
     ROS_DEBUG("Add to graph");
 
-    // Merge previous one keyframe
-    PointCloudI cloudUpdated;
-    Eigen::Isometry3f prevPose = subscription.trajectory[subscription.trajectory.size() - 2];
-    Eigen::Isometry3f T = traj.inverse() * prevPose;
-    Eigen::Matrix4f transformMatrix = T.matrix();
-    pcl::transformPointCloud(subscription.lastKeyframe, cloudUpdated, transformMatrix);
-    
-    // voxel.setInputCloud (_laser_cloud_in);
-    // voxel.setLeafSize (voxel_leaf_size_, voxel_leaf_size_, voxel_leaf_size_);
-    // voxel.filter (*_laser_cloud_in);
-    
-    pcl::copyPointCloud(*_laser_cloud_in, subscription.lastKeyframe);
-    *_laser_cloud_in += cloudUpdated;
     subscription.keyframes.emplace_back(_laser_cloud_in);
+    subscription.timestamps.emplace_back(timestamp);
 
     sensor_msgs::PointCloud2 output;
     pcl::toROSMsg(*_laser_cloud_in, output);
@@ -1818,9 +1829,9 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
     gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(subscription.transformTobeMapped[0], subscription.transformTobeMapped[1], subscription.transformTobeMapped[2]), Point3(subscription.transformTobeMapped[3], subscription.transformTobeMapped[4], subscription.transformTobeMapped[5]));
     gtsam::Pose3 poseFrom = Pose3(Rot3::RzRyRx(subscription.transformLast[0], subscription.transformLast[1], subscription.transformLast[2]), Point3(subscription.transformLast[3], subscription.transformLast[4], subscription.transformLast[5]));
 
-    ROS_DEBUG("id1: %lld, id2: %lld, robotid: %d", id1, id2, robotid);
+    ROS_INFO("id1: %lld, id2: %lld, robotid: %d", id1, id2, robotid);
 
-    std::lock_guard<std::mutex> lock(graph_mutex_);
+    // std::lock_guard<std::mutex> lock(graph_mutex_);
     graphAndValuesVec[robotid].second->insert(id2, Pose3(R,t));
 
     NonlinearFactor::shared_ptr factor(new BetweenFactor<Pose3>(id1, id2, poseFrom.between(poseTo), odometryNoise));
@@ -1864,14 +1875,8 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
   for (int i = 0; i < 6; ++i){
     subscription.transformLast[i] = subscription.transformTobeMapped[i];
   }
-
-  /**
-   * save updated transform
-   */
-  if (subscription.cloudKeyPoses3D->points.size() > 1){
-
-  }
-  ROS_DEBUG("map update done with index: %d", subscription.cloudKeyPoses3D->points.size());
+  keyframeUpdated = true;
+  ROS_INFO("map update done with index: %d", subscription.cloudKeyPoses3D->points.size());
 }
 
 
@@ -1903,6 +1908,202 @@ void GlobalManager::discoUpdate(const dislam_msgs::DiSCOConstPtr& msg,
 
 
 /*
+ * Merge nearest Keyframes
+ */
+void GlobalManager::mergeNearestKeyframes(PointCloudIPtr& Keyframe, int robot_id, int loop_id, int submap_size)
+{
+  PointCloudIPtr submapKeyframe(new PointCloudI);
+  std::unique_lock<std::mutex> obslock(subscriptions_mutex_);
+  auto thisRobotHandle = subscriptions_.begin();
+  std::advance(thisRobotHandle, nrRobots - robot_id - 1);
+
+  for (int i = -submap_size; i <= submap_size; ++i) {
+    int keyNear = loop_id + i;
+    // cout << "keynear " << keyNear << endl;
+    if (keyNear <= 0 || keyNear > int(thisRobotHandle->keyframes.size()))
+      continue;
+
+    PointCloudI cloudUpdated;
+    Eigen::Isometry3f currPose = thisRobotHandle->trajectory[loop_id];
+    Eigen::Isometry3f nearPose = thisRobotHandle->trajectory[keyNear];
+    Eigen::Isometry3f T = currPose.inverse() * nearPose;
+    Eigen::Matrix4f transformMatrix = T.matrix();
+    pcl::copyPointCloud(*(thisRobotHandle->keyframes[keyNear]), *submapKeyframe);
+    pcl::transformPointCloud(*submapKeyframe, cloudUpdated, transformMatrix);
+    *Keyframe += cloudUpdated;
+  }
+  obslock.unlock();
+
+  // Remove ground points
+  pcl::PassThrough<PointTI> pass;
+  // pass.setInputCloud (Keyframe); 
+  // pass.setFilterFieldName ("z");
+  // pass.setFilterLimits (2.0, 40);
+  // pass.filter (*Keyframe);
+
+  pass.setInputCloud (Keyframe); 
+  pass.setFilterFieldName ("x");
+  pass.setFilterLimits (-60.0, 60.0);
+  pass.filter (*Keyframe);
+
+  pass.setInputCloud (Keyframe); 
+  pass.setFilterFieldName ("y");
+  pass.setFilterLimits (-60.0, 60.0);
+  pass.filter (*Keyframe);
+
+  pcl::VoxelGrid<PointTI> voxel;
+  voxel.setInputCloud (Keyframe);
+  voxel.setLeafSize (icp_filter_size_, icp_filter_size_, icp_filter_size_);
+  voxel.filter (*Keyframe);
+}
+
+
+/*
+ * ICP check between looped two frames
+ */
+std::pair<float, Pose3> GlobalManager::ICPCheck(uint64_t id1, uint64_t id2, Eigen::Isometry3d initPose)
+{
+  // Get corresponding point cloud
+  int robot1_id = Key2robotID(id1);
+  int robot2_id = Key2robotID(id2);
+  int robot1_KeyframeID = id1 - robotID2Key(robot1_id) - 1;
+  int robot2_KeyframeID = id2 - robotID2Key(robot2_id) - 1;
+
+  PointCloudIPtr queryKeyframe(new PointCloudI);
+  PointCloudIPtr databaseKeyframe(new PointCloudI);
+  PointCloudIPtr queryKeyframeTransformed(new PointCloudI);
+  std::unique_lock<std::mutex> obslock(subscriptions_mutex_);
+  auto queryRobotHandle = subscriptions_.begin();
+  auto databaseRobotHandle = subscriptions_.begin();
+  std::advance(queryRobotHandle, nrRobots - robot1_id - 1);
+  std::advance(databaseRobotHandle, nrRobots - robot2_id - 1);
+  obslock.unlock();
+
+  if(queryRobotHandle->keyframes.size() <= robot1_KeyframeID + submap_size_)
+    return make_pair(0, Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0)));
+  
+  cout << "ICP check between robot " << robot1_id << " des: " << robot1_KeyframeID << " and robot " << robot2_id << " des: " << robot2_KeyframeID << endl;
+
+  mergeNearestKeyframes(queryKeyframe, robot1_id, robot1_KeyframeID, submap_size_);
+  mergeNearestKeyframes(databaseKeyframe, robot2_id, robot2_KeyframeID, submap_size_);
+
+  cout << "queryKeyframe size " << queryKeyframe->size() << endl;
+  cout << "databaseKeyframe " << databaseKeyframe->size() << endl;
+
+  if(queryKeyframe->size() == 0 || databaseKeyframe->size() == 0)
+    return make_pair(-1, Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0)));
+
+  // Apply initial guess
+  Eigen::Matrix4d transformMatrix = initPose.matrix();
+  Eigen::Matrix4f transformMatrixf = transformMatrix.cast <float> ();
+  // pcl::transformPointCloud(*queryKeyframe, *queryKeyframeTransformed, transformMatrix); 
+  auto start = system_clock::now();
+
+  // OPEN3D registration
+  // geometry::PointCloud source;
+  // std::vector<Eigen::Vector3d> sourcePoints;
+  // for (int i = 0; i < queryKeyframe->size (); i++) {
+  //   sourcePoints.emplace_back(queryKeyframe->points[i].x,queryKeyframe->points[i].y,queryKeyframe->points[i].z);
+  // }
+  // source.points_ = sourcePoints;
+
+  // geometry::PointCloud target;
+  // std::vector<Eigen::Vector3d> targetPoints;
+  // for (int i = 0; i < databaseKeyframe->size (); i++) {
+  //   targetPoints.emplace_back(databaseKeyframe->points[i].x,databaseKeyframe->points[i].y,databaseKeyframe->points[i].z);
+  // }
+  // target.points_ = targetPoints;
+
+  // auto res = pipelines::registration::RegistrationGeneralizedICP(
+  //         source, target, 3.0, transformMatrix,
+  //         pipelines::registration::TransformationEstimationForGeneralizedICP(),
+  //         pipelines::registration::ICPConvergenceCriteria(1e-4, 1e-6, 100));	
+	// cout << "fitness: "<< res.fitness_ << " inlier rmse: " << res.inlier_rmse_ << " correspondence_set size: " << res.correspondence_set_.size() << endl;
+
+  // std::shared_ptr<geometry::PointCloud> source_transformed_ptr(new geometry::PointCloud);
+  // *source_transformed_ptr = source;
+  // source_transformed_ptr->Transform(res.transformation_);
+
+  // for(int i = 0; i < source_transformed_ptr->points_.size(); i++){
+  //   PointTI pt;
+  //   pt.x = source_transformed_ptr->points_[i][0];
+  //   pt.y = source_transformed_ptr->points_[i][1];
+  //   pt.z = source_transformed_ptr->points_[i][2];
+  //   queryKeyframeTransformed->push_back(pt);
+  // }
+
+  auto icp = select_registration_method(registration_method_);
+
+  icp->setInputSource(queryKeyframe);
+  icp->setInputTarget(databaseKeyframe);
+  PointCloudIPtr unused_result(new PointCloudI);
+  icp->align(*unused_result, transformMatrixf); 
+
+  auto end = system_clock::now();
+  auto duration_icp = duration_cast<microseconds>(end - start);
+  ROS_WARN("icp cost: %lfs!", double(duration_icp.count()) * microseconds::period::num / microseconds::period::den);
+
+  // For Visualization
+  PointCloudI queryTransCloud;
+  Eigen::Isometry3f queryPose = queryRobotHandle->trajectory[robot1_KeyframeID-1];
+  Eigen::Matrix4f transToGlobalQ = queryPose.matrix();
+  pcl::transformPointCloud(*queryKeyframe, queryTransCloud, transToGlobalQ);
+  pcl::transformPointCloud(*queryKeyframe, *queryKeyframeTransformed, transformMatrixf);
+
+  PointCloudI databaseTransCloud;
+  Eigen::Isometry3f databaseyPose = databaseRobotHandle->trajectory[robot2_KeyframeID-1];
+  Eigen::Matrix4f transToGlobalD = databaseyPose.matrix();
+  pcl::transformPointCloud(*databaseKeyframe, databaseTransCloud, transToGlobalD);
+
+  PointCloudI alignedTransCloud;
+  pcl::transformPointCloud(*queryKeyframeTransformed, alignedTransCloud, transToGlobalQ);
+
+  // Publish visualization
+  sensor_msgs::PointCloud2 query_output;
+  pcl::toROSMsg(*queryKeyframeTransformed, query_output);
+  query_output.header.frame_id = global_map_frame_;
+  query_cloud_publisher_.publish(query_output);
+
+  sensor_msgs::PointCloud2 database_output;
+  pcl::toROSMsg(*databaseKeyframe, database_output);
+  database_output.header.frame_id = global_map_frame_;
+  database_cloud_publisher_.publish(database_output);
+
+  sensor_msgs::PointCloud2 aligned_output;
+  pcl::toROSMsg(*unused_result, aligned_output);
+  aligned_output.header.frame_id = global_map_frame_;
+  aligned_cloud_publisher_.publish(aligned_output);
+
+  if (icp->hasConverged() == false || icp->getFitnessScore(1.0) > acceptedKeyframeFitnessScore) {
+    std::cout << "[loop] ICP fitness test failed (" << icp->getFitnessScore(1.0) << " > " << acceptedKeyframeFitnessScore << "). Reject this loop." << std::endl;
+    
+    return make_pair(-1, Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0)));
+  } else {
+    std::cout << "[loop] ICP fitness test passed (" << icp->getFitnessScore(1.0) << " < " << acceptedKeyframeFitnessScore << "). Add this loop." << std::endl;
+    
+    float x, y, z, roll, pitch, yaw;
+    auto finalResult = icp->getFinalTransformation();
+
+    Eigen::Isometry3f finalTransform =  (Eigen::Isometry3f)finalResult;
+
+    Pose3 finalTPose3 = Pose3(((Eigen::Isometry3d)finalTransform).matrix());;
+    return make_pair(icp->getFitnessScore(1.0), finalTPose3);
+  }
+
+  // if (res.correspondence_set_.size() <= queryKeyframe->size()/2 || res.inlier_rmse_ > acceptedKeyframeFitnessScore) {
+  //   std::cout << "[loop] ICP fitness test failed (" << res.inlier_rmse_ << " > " << acceptedKeyframeFitnessScore << "). Reject this loop." << std::endl;
+    
+  //   return make_pair(-1, Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0)));
+  // } else {
+  //   std::cout << "[loop] ICP fitness test passed (" << res.inlier_rmse_ << " < " << acceptedKeyframeFitnessScore << "). Add this loop." << std::endl;
+  //   cout << res.transformation_.matrix() << endl;
+  //   Pose3 finalTPose3 = Pose3(((Eigen::Isometry3d)res.transformation_).matrix());;
+  //   return make_pair(res.inlier_rmse_, finalTPose3);
+  // }
+}
+
+
+/*
  * Compose map from map stack
  */
 PointCloud GlobalManager::composeGlobalMap()
@@ -1919,7 +2120,7 @@ PointCloud GlobalManager::composeGlobalMap()
   auto start = system_clock::now();
   std::vector<bool> init_state_vec;
 
-  // lock and check every robots init state
+  // Lock and check every robots init state
   std::unique_lock<std::mutex> lock(subscriptions_mutex_);
 
   for(auto& subscription: subscriptions_){
@@ -1943,16 +2144,13 @@ PointCloud GlobalManager::composeGlobalMap()
 
   auto end = system_clock::now();
   auto duration = duration_cast<microseconds>(end - start);
-  ROS_DEBUG("call service: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
+  // ROS_DEBUG("call service: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
  
   auto merge_start = system_clock::now();
 
   // TODO: GEM merge
   for (int i = 0; i < nrRobots; i++) {
     Eigen::Isometry3f T = Eigen::Isometry3f::Identity();
-    // if(init_state_vec[i])
-    //   T = initPoses[i];
-    // else
     T = currentRef[i];
     
     // Add local map into merged map
@@ -1962,21 +2160,23 @@ PointCloud GlobalManager::composeGlobalMap()
     
     if(mapNeedsToBeCorrected){
       merged_pointcloud.clear();
-      // Transform and reorganize global map stack
-      // for (int j = 0; j < optMapTF[i].size(); j++) {
-      //   Eigen::Isometry3f T = optMapTF[i][j];
-      //   Eigen::Matrix4f transformMatrix = T.matrix();
-      //   pcl::transformPointCloud(global_map_stack[i][j], globalCloudUpdated, transformMatrix); 
-      //   globalClouds += globalCloudUpdated;
-      // }
+      if(enableElevationMapping_){
+        // Transform and reorganize global map stack
+        for (int j = 0; j < optMapTF[i].size(); j++) {
+          Eigen::Isometry3f T = optMapTF[i][j];
+          Eigen::Matrix4f transformMatrix = T.matrix();
+          pcl::transformPointCloud(global_map_stack[i][j], globalCloudUpdated, transformMatrix); 
+          globalClouds += globalCloudUpdated;
+        }
+      }
 
       PointCloudI Keyframe;
       for(auto& subscription: subscriptions_){
         std::lock_guard<std::mutex> lock2(subscription.mutex);
 
         int numberOfCores = 16;
-        int SKIP_FRAMES = 2; // sparse map visulalization to save computations 
-        #pragma omp parallel for num_threads(numberOfCores)
+        int SKIP_FRAMES = 3; // sparse map visulalization to save computations 
+        // #pragma omp parallel for num_threads(numberOfCores)
         for(int k = 1; k < subscription.keyframes.size(); k+=SKIP_FRAMES){
           Eigen::Isometry3f T = optMapTF[subscription.robot_id - start_robot_id_][k] * originMapTF[subscription.robot_id - start_robot_id_][k];
           Eigen::Matrix4f transformMatrix = T.matrix();
@@ -1987,11 +2187,13 @@ PointCloud GlobalManager::composeGlobalMap()
       }
 
     }else if(merged_map_size[i] != optMapTF[i].size()){
-      // Eigen::Isometry3f T = optMapTF[i].back();
-      // Eigen::Matrix4f transformMatrix = T.matrix();
-      // pcl::transformPointCloud(global_map_stack[i].back(), globalCloudUpdated, transformMatrix); 
-      // merged_map += globalCloudUpdated;
-      // merged_map_size[i] ++;
+      if(enableElevationMapping_){
+        Eigen::Isometry3f T = optMapTF[i].back();
+        Eigen::Matrix4f transformMatrix = T.matrix();
+        pcl::transformPointCloud(global_map_stack[i].back(), globalCloudUpdated, transformMatrix); 
+        merged_map += globalCloudUpdated;
+        merged_map_size[i] ++;
+      }
 
       PointCloudI Keyframe;
       for(auto& subscription: subscriptions_){
@@ -2008,18 +2210,18 @@ PointCloud GlobalManager::composeGlobalMap()
 
   pcl::VoxelGrid<PointTI> voxel;
   voxel.setInputCloud (merged_pointcloud.makeShared());
-  voxel.setLeafSize (0.5, 0.5, 0.5);
+  voxel.setLeafSize (globalmap_voxel_leaf_size_, globalmap_voxel_leaf_size_, globalmap_voxel_leaf_size_);
   voxel.filter (merged_pointcloud);
 
-  pcl::PassThrough<PointT> pass;
-  pass.setInputCloud (local_maps.makeShared()); 
-  pass.setFilterFieldName ("z");
-  pass.setFilterLimits (-8.0, 5.0);
-  pass.filter (local_maps);
+  // pcl::PassThrough<PointT> pass;
+  // pass.setInputCloud (local_maps.makeShared()); 
+  // pass.setFilterFieldName ("z");
+  // pass.setFilterLimits (-8.0, 5.0);
+  // pass.filter (local_maps);
 
   auto merge_end = system_clock::now();
   auto merge_duration = duration_cast<microseconds>(merge_end - merge_start);
-  ROS_DEBUG("merge map: %lfs", double(merge_duration.count()) * microseconds::period::num / microseconds::period::den);
+  ROS_INFO("merge map: %lfs with %d points", double(merge_duration.count()) * microseconds::period::num / microseconds::period::den, merged_pointcloud.size());
  
   ROS_DEBUG("compose Maps done.");
 
@@ -2049,35 +2251,47 @@ void GlobalManager::mapComposing()
     composeGlobalMap();
   }
 
-  // auto filter_start = system_clock::now();
-
-  // // Remove ground points
-  // pcl::PassThrough<PointT> pass;
-  // pass.setInputCloud (merged_map.makeShared()); 
-  // pass.setFilterFieldName ("z");
-  // pass.setFilterLimits (-8.0, 5.0);
-  // pass.filter (merged_map);
-
-  // auto filter_end = system_clock::now();
-  // auto filter_duration = duration_cast<microseconds>(filter_end - filter_start);
-  // ROS_INFO("filter map: %lfs", double(filter_duration.count()) * microseconds::period::num / microseconds::period::den);
- 
-  // pcl::VoxelGrid<PointT> voxel;
-  // // Add keyframe to robot handle
-  // voxel.setInputCloud (merged_map.makeShared());
-  // voxel.setLeafSize (0.2, 0.2, 0.2);
-  // voxel.filter (merged_map);
-
-  // if (merged_map.empty()) 
-  //   return;
-
-  // pcl::StatisticalOutlierRemoval<PointT>sor;
-  // sor.setInputCloud(cloud);
-  // sor.setMeanK(50);
-  // sor.setStddevMulThresh(0.5);
-  // sor.filter(merged_map);
-
   ROS_DEBUG("Map Composing finished.");
+}
+
+
+/*
+ * Publish transform /map to /robotid/map
+ */
+void GlobalManager::publishTF()
+{
+  // no locking. tf_transforms_ is accessed only from tf thread
+  // subscriptions_ is a forward_list, need to be sorted
+  std::vector<int> robotIDSortedIndex = sort_indexes(robotIDStack);
+
+  for (int i = 0; i < nrRobots; i++) {
+    int robotid = i;
+    int queryID = robotIDSortedIndex[i];
+
+    geometry_msgs::TransformStamped tf_transform;
+    tf_transform.header.stamp = ros::Time::now();
+    tf_transform.header.frame_id = "/map";
+    tf_transform.child_frame_id = robotNameVec[queryID] + "/odom";
+
+    if (robotid < mapTF.size()){
+      tf_transform.transform.translation.x = mapTF[robotid].translation().x();
+      tf_transform.transform.translation.y = mapTF[robotid].translation().y();
+      tf_transform.transform.translation.z = mapTF[robotid].translation().z();
+      tf_transform.transform.rotation.x = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().x();
+      tf_transform.transform.rotation.y = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().y();
+      tf_transform.transform.rotation.z = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().z();
+      tf_transform.transform.rotation.w = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().w();
+    }else{
+      tf_transform.transform.translation.x = initPoses[robotid].translation().x();
+      tf_transform.transform.translation.y = initPoses[robotid].translation().y();
+      tf_transform.transform.translation.z = initPoses[robotid].translation().z();
+      tf_transform.transform.rotation.x = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().x();
+      tf_transform.transform.rotation.y = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().y();
+      tf_transform.transform.rotation.z = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().z();
+      tf_transform.transform.rotation.w = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().w();
+    }
+    tf_publisher_.sendTransform(tf_transform);
+  }
 }
 
 
@@ -2088,8 +2302,6 @@ void GlobalManager::publishMergedMap()
 {
   auto start = system_clock::now();
 
-  // std::lock_guard<std::mutex> mergedMaplock(merged_map_mutex);
-
   sensor_msgs::PointCloud2 output;
   pcl::toROSMsg(merged_map+local_maps, output);
   output.header.frame_id = global_map_frame_;
@@ -2098,7 +2310,6 @@ void GlobalManager::publishMergedMap()
   auto end = system_clock::now();
   auto duration = duration_cast<microseconds>(end - start);
   ROS_DEBUG("publishMergedMap: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
-   
 }
 
 
@@ -2109,8 +2320,6 @@ void GlobalManager::publishMergedPointcloud()
 {
   auto start = system_clock::now();
 
-  // std::lock_guard<std::mutex> mergedMaplock(merged_map_mutex);
-
   sensor_msgs::PointCloud2 output;
   pcl::toROSMsg(merged_pointcloud, output);
   output.header.frame_id = global_map_frame_;
@@ -2119,7 +2328,6 @@ void GlobalManager::publishMergedPointcloud()
   auto end = system_clock::now();
   auto duration = duration_cast<microseconds>(end - start);
   ROS_DEBUG("publishMergedPointcloud: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
-   
 }
 
 
@@ -2179,46 +2387,6 @@ bool GlobalManager::isRobotDiSCOTopic(const ros::master::TopicInfo& topic)
 
 
 /*
- * Publish transform /map to /robotid/map
- */
-void GlobalManager::publishTF()
-{
-  // no locking. tf_transforms_ is accessed only from tf thread
-  // subscriptions_ is a forward_list, need to be sorted
-  std::vector<int> robotIDSortedIndex = sort_indexes(robotIDStack);
-
-  for (int i = 0; i < nrRobots; i++) {
-    int robotid = i;
-    int queryID = robotIDSortedIndex[i];
-
-    geometry_msgs::TransformStamped tf_transform;
-    tf_transform.header.stamp = ros::Time::now();
-    tf_transform.header.frame_id = "/map";
-    tf_transform.child_frame_id = robotNameVec[queryID] + "/odom";
-
-    if (robotid < mapTF.size()){
-      tf_transform.transform.translation.x = mapTF[robotid].translation().x();
-      tf_transform.transform.translation.y = mapTF[robotid].translation().y();
-      tf_transform.transform.translation.z = mapTF[robotid].translation().z();
-      tf_transform.transform.rotation.x = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().x();
-      tf_transform.transform.rotation.y = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().y();
-      tf_transform.transform.rotation.z = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().z();
-      tf_transform.transform.rotation.w = Pose3(((Eigen::Isometry3d)mapTF[robotid]).matrix()).rotation().toQuaternion().w();
-    }else{
-      tf_transform.transform.translation.x = initPoses[robotid].translation().x();
-      tf_transform.transform.translation.y = initPoses[robotid].translation().y();
-      tf_transform.transform.translation.z = initPoses[robotid].translation().z();
-      tf_transform.transform.rotation.x = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().x();
-      tf_transform.transform.rotation.y = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().y();
-      tf_transform.transform.rotation.z = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().z();
-      tf_transform.transform.rotation.w = Pose3(((Eigen::Isometry3d)initPoses[robotid]).matrix()).rotation().toQuaternion().w();
-    }
-    tf_publisher_.sendTransform(tf_transform);
-  }
-}
-
-
-/*
  * Publish pose graph for visualization
  */
 void GlobalManager::publishPoseGraph()
@@ -2231,16 +2399,16 @@ void GlobalManager::publishPoseGraph()
     // Assign trajectory color
     if(i == 0){
       trajMarker_.color.r = 1.0f;
-      trajMarker_.color.g = 1.0f;
+      trajMarker_.color.g = 0.0f;
       trajMarker_.color.b = 0.0f;
     }else if(i == 1){
       trajMarker_.color.r = 0.0f;
       trajMarker_.color.g = 1.0f;
       trajMarker_.color.b = 0.0f;
     }else if(i == 2){
-      trajMarker_.color.r = 1.0f;
+      trajMarker_.color.r = 0.0f;
       trajMarker_.color.g = 0.0f;
-      trajMarker_.color.b = 0.0f;
+      trajMarker_.color.b = 1.0f;
     }
     trajPoints.markers.push_back(trajMarker_);
   }
@@ -2258,6 +2426,58 @@ void GlobalManager::publishPoseGraph()
   pose_graph_publisher_.publish(trajPoints);
   pose_graph_publisher_.publish(loopEdges);
 
+}
+
+
+/*
+ * Select registration methods
+ */
+pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>::Ptr GlobalManager::select_registration_method(std::string type)
+{
+  // pcl::IterativeClosestPoint<PointTI, PointTI> icp;
+  if(registration_method_ == "PCL_GICP"){
+    std::cout << "registration: PCL_GICP" << std::endl;
+    pcl::GeneralizedIterativeClosestPoint<PointTI, PointTI>::Ptr icp(new pcl::GeneralizedIterativeClosestPoint<PointTI, PointTI>());
+    icp->setMaxCorrespondenceDistance(100.0);
+    icp->setMaximumIterations((int)icp_iters_);
+    icp->setTransformationEpsilon(1e-3);
+    icp->setEuclideanFitnessEpsilon(1e-3);
+    return icp;
+  }else if(registration_method_ == "PCL_ICP"){
+    std::cout << "registration: PCL_ICP" << std::endl;
+    pcl::IterativeClosestPoint<PointTI, PointTI>::Ptr icp(new pcl::IterativeClosestPoint<PointTI, PointTI>());
+    icp->setMaxCorrespondenceDistance(100.0);
+    icp->setMaximumIterations((int)icp_iters_);
+    icp->setTransformationEpsilon(1e-3);
+    icp->setEuclideanFitnessEpsilon(1e-3);
+    return icp;
+  }else if(registration_method_ == "FAST_GICP"){
+    std::cout << "registration: FAST_GICP" << std::endl;
+    fast_gicp::FastGICP<PointTI, PointTI>::Ptr gicp(new fast_gicp::FastGICP<PointTI, PointTI>());
+    gicp->setNumThreads(8);
+    gicp->setTransformationEpsilon(1e-3);
+    gicp->setMaximumIterations((int)icp_iters_);
+    gicp->setMaxCorrespondenceDistance(100.0);
+    gicp->setCorrespondenceRandomness(15);
+    return gicp;
+  }
+  else if(registration_method_ == "FAST_VGICP_CUDA") {
+    #ifdef USE_VGICP_CUDA
+    std::cout << "registration: FAST_VGICP_CUDA" << std::endl;
+    fast_gicp::FastVGICPCuda<PointTI, PointTI>::Ptr vgicp(new fast_gicp::FastVGICPCuda<PointTI, PointTI>());
+    vgicp->setResolution(0.5);
+    vgicp->setTransformationEpsilon(1e-3);
+    vgicp->setMaximumIterations((int)icp_iters_);
+    vgicp->setCorrespondenceRandomness(15);
+    vgicp->setNeighborSearchMethod(fast_gicp::NeighborSearchMethod::DIRECT1, 1.5);
+
+    return vgicp;
+    #endif
+    cerr << "FAST_VGICP_CUDA is Not Build !!" << endl;
+  }
+  else{
+    cerr << "Not Implemented Registration Method !!" << endl;
+  }
 }
 
 

@@ -1,6 +1,6 @@
 <launch>
 
-  <!-- <param name="/use_sim_time" value="false" /> -->
+  <param name="/use_sim_time" value="true" />
 
   <node pkg="global_manager" type="global_manager_node" respawn="false" name="global_manager" output="screen">
     
@@ -12,10 +12,11 @@
     <param name="publish_tf" value="true"/>
     <param name="loop_closure_enable" value="true"/>
     <param name="use_other_descriptor" value="true"/>
+    <param name="use_refined_initials" value="true"/>
     <param name="odometry_loop_enable" value="false"/>    
     <param name="loop_detection_debug" value="false"/>
     <param name="manual_robots_config" value="true"/>
-    <!-- <param name="keyframe_filter_enable" value="true"> -->
+    <param name="enable_elevation_mapping" value="true"/>
     
     <!-- string  -->
     <param name="submap_topic" value="submap"/>
@@ -34,19 +35,27 @@
 
     <!-- specific parameters -->
     <param name="start_robot_id" value="1"/>
-    <param name="composing_rate" value="4"/>
+    <param name="composing_rate" value="3"/>
     <param name="tf_publish_rate" value="10"/>
     <param name="disco_dim" value="1024"/>
     <param name="disco_width" value="120"/>
     <param name="disco_height" value="40"/>
-    <param name="loop_detection_rate" value="5"/>
-    <param name="pose_graph_pub_rate" value="2"/>
+    <param name="loop_detection_rate" value="0.1"/>
+    <param name="pose_graph_pub_rate" value="1"/>
     <param name="DiSCO_dist_thres" value="17.0"/>
-    <param name="icp_iters" value="20"/>
-    <param name="icp_fitness_score" value="0.6"/>
-    <param name="voxel_leaf_size" value="0.4"/>
+
+    <!-- icp params: registration_method choose from PCL_ICP, PCL_GICP, FAST_GICP, FAST_VGICP_CUDA-->
+    <param name="registration_method" value="FAST_VGICP_CUDA"/>
+    <param name="submap_size" value="1"/>
+    <param name="icp_iters" value="50"/>
+    <param name="icp_fitness_score" value="0.10"/>
+    <param name="icp_filter_size" value="0.2"/>
+    <param name="submap_voxel_leaf_size" value="0.2"/>
+    <param name="globalmap_voxel_leaf_size" value="0.5"/>
+
     <param name="keyframe_search_candidates" value="10"/>
     <param name="keyframe_search_radius" value="8"/>
   </node>
 
 </launch>
+

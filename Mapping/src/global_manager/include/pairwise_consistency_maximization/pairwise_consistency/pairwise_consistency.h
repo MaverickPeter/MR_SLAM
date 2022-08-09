@@ -5,7 +5,7 @@
 
 #include "graph_utils/graph_utils_functions.h"
 
-#include <eigen3/Eigen/Geometry>
+#include <Eigen/Geometry>
 
 /** \namespace pairwise_consistency
  *  \brief This namespace encapsulates the tools for the pairwise consistency computation.

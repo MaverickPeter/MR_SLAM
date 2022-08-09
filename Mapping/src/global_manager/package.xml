@@ -19,6 +19,7 @@
   <depend>tf2_ros</depend>
   <depend>tf2_eigen</depend>
   <depend>tf_conversions</depend>
+  <depend>fast_gicp</depend>
 
   <test_depend>rosunit</test_depend>
   <test_depend>roslaunch</test_depend>

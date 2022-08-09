@@ -1,36 +1,62 @@
 cmake_minimum_required(VERSION 3.1)
 project(global_manager)
 
+set(CMAKE_BUILD_TYPE "RELEASE")
+
 add_definitions(-w)
 add_definitions(${GLEW_DEFINITIONS})
+add_definitions(-msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2)
+set(CMAKE_CXX_FLAGS "-msse -msse2 -msse3 -msse4 -msse4.1 -msse4.2")
 set(CMAKE_CXX_STANDARD 11)
 
 # Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS
+  fast_gicp
+  roscpp
   pcl_ros
   sensor_msgs
   std_msgs
   dislam_msgs
-  roscpp
   cv_bridge
   tf2_eigen
   tf_conversions
   tf2_ros
 )
 
+find_package(OpenMP)
+if (OPENMP_FOUND)
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+endif()
+
+find_library(VGICP_CUDA_FOUND NAMES fast_vgicp_cuda)
+message(STATUS "*********************VGICP_CUDA_FOUND:" ${VGICP_CUDA_FOUND})
+if(VGICP_CUDA_FOUND)
+  add_definitions(-DUSE_VGICP_CUDA)
+endif()
+
+
+if(NOT DEFINED CMAKE_SUPPRESS_DEVELOPER_WARNINGS)
+     set(CMAKE_SUPPRESS_DEVELOPER_WARNINGS 1 CACHE INTERNAL "No dev warnings")
+endif()
 find_package(PCL REQUIRED COMPONENTS core features filters io registration visualization)
+add_definitions(${PCL_DEFINITIONS})
 
 # Find GTSAM
 find_package(GTSAM REQUIRED)
 find_package(FFTW3 REQUIRED)
 find_package(CUDA 10 REQUIRED)
 
+
 #find_package(Yaml-cpp REQUIRED)
 #include_directories(${YAML_CPP_INCLUDE_DIR})
 #link_directories(${YAML_CPP_LIBRARY_DIRS})
 
-include_directories(${GTSAM_INCLUDE_DIR})
+# include_directories(${GTSAM_INCLUDE_DIR})
 link_directories(${GTSAM_LIBRARY_DIRS})
+
+# include_directories(${Open3D_INCLUDE_DIR})
+# link_directories(${Open3D_LIBRARY_DIRS})
 #message("GTSAM Include dir: ${GTSAM_INCLUDE_DIR}")
 #message("YAML_CPP Include dir: ${YAML_CPP_INCLUDE_DIR}")
 ###########################################################################
@@ -87,6 +113,7 @@ catkin_package(
     submap_msg
     sensor_msgs
     std_msgs
+  # DEPENDS Open3D
 )
 
 ###################################
@@ -110,6 +137,7 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${CUDA_INCLUDE_DIRS}
+  # ${Open3D_INCLUDE_DIRS}
 )
 
 ###########################################################################
@@ -125,6 +153,7 @@ include_directories(
 # Graph utils library
 add_library(graph_utils
         src/pairwise_consistency_maximization/graph_utils/graph_utils_functions.cpp
+        ${GTSAM_INCLUDE_DIR}
 )
 target_link_libraries(graph_utils
         gtsam
@@ -198,7 +227,7 @@ add_library(global_manager SHARED
   src/kdtree.cpp
   src/pose_graph_tool.cpp
   ${CUDA_INCLUDE_DIRS}
-
+  # ${OPEN3D_INCLUDE_DIRS}
   # src/MultiRobotUtils.cpp
   # src/DistributedMapper.cpp
 )

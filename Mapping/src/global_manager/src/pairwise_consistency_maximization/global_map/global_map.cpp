@@ -4,6 +4,7 @@
 #include "findClique.h"
 #include <math.h>
 #include <gtsam/inference/Symbol.h>
+#include <iostream>
 
 #ifdef LOG_DIR
 #define DIR LOG_DIR
@@ -13,9 +14,10 @@
 
 namespace global_map {
 
-const std::string GlobalMap::LOG_DIRECTORY = std::string(DIR) + std::string("/log/");
+const std::string GlobalMap::LOG_DIRECTORY = std::string(DIR) + std::string("log/");
 const std::string GlobalMap::CONSISTENCY_MATRIX_FILE_NAME = std::string(GlobalMap::LOG_DIRECTORY+"consistency_matrix");
 const std::string GlobalMap::CONSISTENCY_LOOP_CLOSURES_FILE_NAME = std::string(GlobalMap::LOG_DIRECTORY+"consistent_loop_closures");
+
 
 GlobalMap::GlobalMap(const robot_measurements::RobotLocalMap& robot1_local_map,
                 const robot_measurements::RobotLocalMap& robot2_local_map,
@@ -31,8 +33,10 @@ GlobalMap::GlobalMap(const robot_measurements::RobotLocalMap& robot1_local_map,
 std::pair<std::vector<int>, int> GlobalMap::pairwiseConsistencyMaximization() {
     // Compute consistency matrix
     Eigen::MatrixXi consistency_matrix = pairwise_consistency_.computeConsistentMeasurementsMatrix();
+
     char robot_id = gtsam::Symbol(pairwise_consistency_.getTransformsRobot1().start_id).chr();
     std::string consistency_matrix_file = CONSISTENCY_MATRIX_FILE_NAME + "_" + robot_id + ".clq.mtx";
+
     graph_utils::printConsistencyGraph(consistency_matrix, consistency_matrix_file);
 
     // Compute maximum clique

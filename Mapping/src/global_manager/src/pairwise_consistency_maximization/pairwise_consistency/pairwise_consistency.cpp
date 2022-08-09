@@ -41,7 +41,6 @@ Eigen::MatrixXi PairwiseConsistency::computeConsistentMeasurementsMatrix() {
 
     // Determination of the chi squared threshold (numbers from chi-squared table)
     double threshold = getChiSquaredThreshold();
-
     // Preallocate consistency matrix
     Eigen::MatrixXi consistency_matrix(loop_closures_.size(), loop_closures_.size());
 

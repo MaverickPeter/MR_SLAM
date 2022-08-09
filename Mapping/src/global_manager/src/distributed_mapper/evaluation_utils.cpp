@@ -318,7 +318,7 @@ namespace evaluation_utils{
     cen_FG.push_back(first_key_prior);
 
     Values chordal_GN = initial;
-    for (size_t iter = 0; iter < 20; iter++) {
+    for (size_t iter = 0; iter < 200; iter++) {
       GaussianFactorGraph chordal_GFG = *(cen_FG.linearize(chordal_GN));
       VectorValues chordal_vector_values = chordal_GFG.optimize(); // optimize
       chordal_GN = retractPose3Global(chordal_GN, chordal_vector_values);

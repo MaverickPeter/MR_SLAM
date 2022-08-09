@@ -1,6 +1,7 @@
 // read config file
 #include <sys/types.h>
 #include <dirent.h>
+#include "omp.h"
 
 #include <atomic>
 #include <mutex>
@@ -26,6 +27,11 @@
 #include <std_msgs/Bool.h>
 #include <tf2_ros/transform_broadcaster.h>
 
+// open3d
+// #include "open3d/Open3D.h"
+// #include "open3d/t/pipelines/registration/Registration.h"
+
+
 // opencv
 #include <opencv2/core/core.hpp>
 #include <cv_bridge/cv_bridge.h>
@@ -42,6 +48,7 @@
 // pcl
 #include <pcl_ros/point_cloud.h>
 #include <pcl/registration/icp.h>
+#include <pcl/registration/gicp.h>
 #include <pcl/filters/filter_indices.h>
 #include <pcl/common/transforms.h>
 #include <pcl/features/normal_3d.h>
@@ -65,10 +72,19 @@
 // visualization
 #include <global_manager/pose_graph_tool.hpp>
 
+// fast gicp
+#include <fast_gicp/gicp/fast_gicp.hpp>
+#include <fast_gicp/gicp/fast_vgicp.hpp>
 
+#ifdef USE_VGICP_CUDA
+#include <fast_gicp/gicp/fast_vgicp_cuda.hpp>
+#endif
+
+// using namespace open3d;
 using namespace gtsam;
 using namespace chrono;
 using namespace distributed_mapper;
+// using namespace open3d::t::pipelines::registration;
 // using namespace multirobot_util;
 
 namespace global_manager
@@ -102,6 +118,7 @@ typedef struct RobotHandle {
   OrthoVector ortho_image;  // not used for this version
   PointCloudI lastKeyframe; // for keyframe pointcloud enhance
   PointCloudI keyframePC; // keyframe pointcloud
+  TimeStampVec timestamps;  // timestamp
 
   DiSCOVec disco_base;  // disco database
   DiSCOFFTVec disco_fft;  // disco fft database
@@ -159,9 +176,12 @@ private:
   bool loopClosureEnable_;
   bool odometryLoopEnable_;  
   bool useOtherDescriptor_;
-  bool manual_robots_config_;
+  bool useRefinedInitials_;
+  bool manualRobotConfig_;
+  bool enableElevationMapping_;
   double disco_dim_;
   double icp_iters_;
+  double submap_size_;
   double disco_width_;
   double disco_height_;
   double start_robot_id_;
@@ -169,9 +189,11 @@ private:
   double discovery_rate_;
   double tf_publish_rate_;
   double pose_graph_pub_rate_;
-  double voxel_leaf_size_;
+  double submap_voxel_leaf_size_;
+  double globalmap_voxel_leaf_size_;
   double keyframe_search_candidates_;
   double loop_detection_rate_;
+  std::string registration_method_;
   std::string manual_config_dir_;
   std::string robot_submap_topic_;
   std::string robot_disco_topic_;
@@ -195,7 +217,7 @@ private:
   std::vector<PointCloud> local_map_stack;
   std::vector<std::vector<PointCloud>> global_map_stack;
 
-  // pose graph
+  // pose graph optimization
   std::mutex graph_mutex_;
   std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> mapTF;
   std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> lastTF;
@@ -210,9 +232,16 @@ private:
   noiseModel::Base::shared_ptr robustNoiseModel;
   noiseModel::Diagonal::shared_ptr odometryNoise;
   noiseModel::Diagonal::shared_ptr constraintNoise;
+  noiseModel::Diagonal::shared_ptr loopNoise;
+  int loop_num;
   double timeLaserOdometry;
   bool aLoopIsClosed = false;
+  bool keyframeUpdated = false;
   bool mapNeedsToBeCorrected = false;
+
+  // geometry check
+  double icp_filter_size_;
+  std::queue<std::tuple<uint64_t, uint64_t, Eigen::Isometry3d>> loops_buf;
 
   // pose graph visualization
   visualization_msgs::Marker trajMarker_;
@@ -239,7 +268,6 @@ private:
   DistributedMapper::UpdateType updateType = DistributedMapper::incUpdate; // updateType differetiates between Distributed Jacobi/Jacobi OverRelaxation (postUpdate) and Gauss-Seidel/Successive OverRelaxation (incUpdate)
 
   // kdtree for loop closure 
-  int loop_num;
   int disco_ind;
   int DISCO_DIM; // default 1024; the dimension of place recognitiondescriptor
   int latestFrameIDLoopCloure;
@@ -258,7 +286,10 @@ private:
   // publishing
   ros::Publisher merged_pointcloud_publisher_;
   ros::Publisher merged_elevation_map_publisher_;
-  ros::Publisher keyframe_cloud_publisher_;
+  ros::Publisher query_cloud_publisher_;
+  ros::Publisher database_cloud_publisher_;
+  ros::Publisher aligned_cloud_publisher_;
+
   ros::Publisher pose_graph_publisher_;
   ros::Publisher optimizing_state_publisher_;
 
@@ -301,6 +332,7 @@ private:
   void mapSaving(const std_msgs::Bool::ConstPtr& savingSignal);
   void mapUpdate(const dislam_msgs::SubMapConstPtr& msg, robotHandle_& subscription);
   void discoUpdate(const dislam_msgs::DiSCOConstPtr& msg, robotHandle_& subscription);
+  pcl::Registration<PointTI, PointTI>::Ptr select_registration_method(std::string type);
 
 public:
   /**
@@ -367,8 +399,22 @@ public:
   /**
    * @brief Correct pose using merged pose graph.
    * @details When pose graph is constructed, they are optimized 
+   * @return Corrected pose graph and corrected pose size
    */
-  std::pair<Values, std::vector<int>> correctPoses(bool updateGraph);
+  std::pair<Values, std::vector<int>> correctPoses();
+
+  /**
+   * @brief Perform ICP check between two point cloud.
+   * @details When loops info come in ICP check is for reject outliers 
+   * @return ICP fitness score and transform
+   */
+  std::pair<float, Pose3> ICPCheck(uint64_t id1, uint64_t id2, Eigen::Isometry3d initPose);
+
+  /**
+   * @brief Perform ICP check in thread.
+   * @details Perform icp check in queue
+   */
+  void geometryCheckThread();
 
   /**
    * @brief Update transform using the corrected pose graph.
@@ -385,19 +431,21 @@ public:
   /**
    * @brief Construct full pose graph.
    * @details Collect all subgraph to construct a full 
+   * @return Full graphs
    */
   GraphAndValues readFullGraph();
 
   /**
    * @brief copyInitial copies the initial graph to optimized graph as a fall back option
-   * @param nrRobots is the number of robots
-   * @param dataDir is the directory containing the initial graph
+   * @details Copy the initials of all graphs
+   * @return Full initials
    */
   Values copyInitial();
   
   /**
    * @brief Construct distMapper optimizer.
    * @details Collect all subgraph to construct a optimizer 
+   * @return Robots' optimize node size
    */
   std::vector<int> constructOptimizer(bool savingMode=false);
 
@@ -417,7 +465,13 @@ public:
    * @brief Process loop closure info given by loop detection node.
    * @details add edges to the maintained graph using subscribed loop info
    */
-  void processLoopClosure(const dislam_msgs::LoopsConstPtr& msg);
+  void processLoopClosureWithInitials(const dislam_msgs::LoopsConstPtr& msg);
+
+  /**
+   * @brief Process loop closure info given by loop detection node.
+   * @details add edges to the maintained graph using subscribed loop info
+   */
+  void processLoopClosureWithFinePose(const dislam_msgs::LoopsConstPtr& msg);
 
   /**
    * @brief Composes and publishes the global map based on estimated
@@ -432,6 +486,13 @@ public:
    * @return merged map
    */
   PointCloud composeGlobalMap();
+
+  /**
+   * @brief Merge nearest keyframe point cloud for icp
+   * @details This function is thread-safe
+   * @return merged keyframe
+   */
+  void mergeNearestKeyframes(PointCloudIPtr& Keyframe, int robot_id, int loop_id, int submap_size);
 
 };
 

@@ -73,6 +73,9 @@ typedef pcl::PointCloud<PointT>::ConstPtr PointCloudConstPtr;
 // keyframe pointclouds
 typedef std::vector<PointCloudIPtr> KeyFrameVec;
 
+// timestamp
+typedef std::vector<ros::Time> TimeStampVec;
+
 // FFT result of disco storage
 typedef std::vector<float> DiSCO;
 typedef std::pair<std::vector<float>, std::vector<float>> DiSCOFFT;

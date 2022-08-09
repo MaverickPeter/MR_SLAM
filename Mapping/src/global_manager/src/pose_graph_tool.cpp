@@ -21,7 +21,7 @@ void initGraphNodeMarkers(visualization_msgs::Marker &graphNodeMarker, std::stri
     graphNodeMarker.type  = visualization_msgs::Marker::LINE_STRIP;
 
     // setting scale
-    graphNodeMarker.scale.x = 0.3;
+    graphNodeMarker.scale.x = 1.2;
 
     // assigning colors
     graphNodeMarker.color.r = 0.0f;
@@ -50,7 +50,7 @@ void initGraphEdgeMarkers(visualization_msgs::Marker &graphEdgeMarker, std::stri
     graphEdgeMarker.type  = visualization_msgs::Marker::LINE_LIST;
 
     // setting scale
-    graphEdgeMarker.scale.x = 0.3;
+    graphEdgeMarker.scale.x = 1.2;
 
     // assigning colors
     graphEdgeMarker.color.r = 1.0f;

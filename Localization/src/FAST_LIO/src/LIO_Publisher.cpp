@@ -125,8 +125,6 @@ void LIO_Pub::OdomCallback(nav_msgs::Odometry msg)
     // pub_Signal();
     pub_TF(msg);
 
-
-
     if(distance > dis_th)
     {
         // New start point

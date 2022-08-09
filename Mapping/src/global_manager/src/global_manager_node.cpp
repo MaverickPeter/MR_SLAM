@@ -47,6 +47,7 @@ int main(int argc, char** argv)
   boost::thread LoopClousreThread(&global_manager::GlobalManager::loopClosingThread, &global_manager_node);
   boost::thread TFPublishThread(&global_manager::GlobalManager::publishTFThread, &global_manager_node);
   boost::thread PoseGraphPublishThread(&global_manager::GlobalManager::publishPoseGraphThread, &global_manager_node);
+  boost::thread GeometryCheckPublishThread(&global_manager::GlobalManager::geometryCheckThread, &global_manager_node);
 
   // use all threads for spinning
   ros::MultiThreadedSpinner spinner;
