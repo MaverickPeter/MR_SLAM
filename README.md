@@ -94,7 +94,12 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
   ```
 * [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
   ```sh
-  Fast GICP is already include in the repo.
+  # Fast GICP is already include in the repo. You can use 
+  git submodule sync
+  git submodule init --recursive
+  git submodule update
+
+  # or you can clone the repo and put them in the same place
   Follow https://github.com/SMRT-AIST/fast_gicp
   ```
 
