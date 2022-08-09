@@ -1,0 +1,41 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b tf2_ros is the C++ ROS wrapper around the tf2 transform library.
+
+\section codeapi Code API
+
+To broadcast transforms using ROS:
+- Call ros::init() to initialize a node.
+- Construct a tf2_ros::TransformBroadcaster.
+- Pass a geometry_msgs::TransformStamped message to tf2_ros::TransformBroadcaster::sendTransform().
+  - Alternatively, pass a vector of geometry_msgs::TransformStamped messages.
+- Use tf2_ros::StaticTransformBroadcaster for "latching" behavior when transforms that are not expected to change.
+
+To listen for transforms using ROS:
+- Construct an instance of a class that implements tf2_ros::BufferInterface.
+  - tf2_ros::Buffer is the standard implementation which offers a tf2_frames service that can respond to requests with a tf2_msgs::FrameGraph.
+  - tf2_ros::BufferClient uses an actionlib::SimpleActionClient to wait for the requested transform to become available.
+    - It should be used with a tf2_ros::BufferServer, which offers the corresponding actionlib::ActionSErver.
+- Pass the tf2_ros::Buffer to the constructor of tf2_ros::TransformListener.
+  - Optionally, pass a ros::NodeHandle (otherwise TransformListener will connect to the node for the process).
+  - Optionally, specify if the TransformListener runs in its own thread or not.
+- Use tf2_ros::BufferInterface::transform() to apply a transform on the tf server to an input frame.
+  - Or, check if a transform is available with tf2_ros::BufferInterface::canTransform().
+  - Then, call tf2_ros::BufferInterface::lookupTransform() to get the transform between two frames.
+- Construct a tf2_ros::MessageFilter with the TransformListener to apply a transformation to incoming frames.
+  - This is especially useful when streaming sensor data.
+
+List of exceptions thrown in this library:
+- tf2::LookupException
+- tf2::ConnectivityException
+- tf2::ExtrapolationException
+- tf2::InvalidArgumentException
+- tf2::TimeoutException
+- tf2::TransformException
+
+For more information, see the tf2 tutorials: http://wiki.ros.org/tf2/Tutorials
+
+Or, get an <A HREF="http://wiki.ros.org/tf2/Tutorials/Migration/DataConversions">overview</A> of data type conversion methods in geometry_experimental packages.
+*/

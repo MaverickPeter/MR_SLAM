@@ -1,0 +1,19 @@
+/**
+\mainpage
+\htmlinclude manifest.html
+
+\b tf2_eigen contains functions for converting between geometry_msgs and Eigen data types.
+
+This library is an implementation of the templated conversion interface specified in tf/convert.h.
+It enables easy conversion from geometry_msgs Transform and Point types to the types specified
+by the Eigen matrix algebra library (see http://eigen.tuxfamily.org).
+
+See the <A HREF="http://wiki.ros.org/tf2/Tutorials/Migration/DataConversions">Conversions overview</A>
+wiki page for more information about datatype conversion in tf2.
+
+\section codeapi Code API 
+
+This library consists of one header only, tf2_eigen/tf2_eigen.h, which consists mostly of
+specializations of template functions defined in tf2/convert.h.
+
+*/

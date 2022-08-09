@@ -1,0 +1,27 @@
+<package format="2">
+  <name>tf2_kdl</name>
+  <version>0.7.5</version>
+  <description>
+    KDL binding for tf2
+  </description>
+  <maintainer email="tfoote@osrfoundation.org">Tully Foote</maintainer>
+  <author>Wim Meeussen</author>
+  <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/tf2</url>
+
+  <buildtool_depend version_gte="0.5.68">catkin</buildtool_depend>
+
+  <build_depend>cmake_modules</build_depend> <!-- needed for eigen -->
+  <build_depend>eigen</build_depend> <!-- needed by kdl internally -->
+
+  <build_export_depend>eigen</build_export_depend> <!-- needed by kdl internally -->
+
+  <depend>liborocos-kdl-dev</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+
+  <test_depend>ros_environment</test_depend>
+  <test_depend>rostest</test_depend>
+
+</package>

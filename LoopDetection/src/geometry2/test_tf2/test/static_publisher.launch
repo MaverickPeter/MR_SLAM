@@ -1,0 +1,34 @@
+<launch>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="test_static_pub_ab" args="1 0 0 0 0 0 1 a b" />
+  <node pkg="tf2_ros" type="static_transform_publisher" name="test_static_pub_bc" args="0 1 0 0 0 0 1 b c" />
+
+  <!-- Start the static tf publisher with a valid tf.  There is a test
+       (tf_from_param_server_valid) that ensures the TF is published. -->
+  <rosparam param="test_tf2/tf_valid"
+            file="$(find test_tf2)/test/test_tf_valid.yaml" />
+  <node pkg="tf2_ros" type="static_transform_publisher"
+        name="test_static_pub_param_valid"
+        args="test_tf2/tf_valid" />
+
+  <!-- Start the static tf publisher with an *invalid* tf.
+       The main purpose of this test is to ensure the node dies gracefully. -->
+  <rosparam param="test_tf2/tf_invalid"
+            file="$(find test_tf2)/test/test_tf_invalid.yaml" />
+  <node pkg="tf2_ros" type="static_transform_publisher"
+        name="test_static_pub_param_invalid"
+        args="test_tf2/tf_invalid" />
+
+  <!-- Start the static tf publisher with a non-existent parameter.
+       The main purpose of this test is to ensure the node dies gracefully. -->
+  <node pkg="tf2_ros" type="static_transform_publisher"
+        name="test_static_pub_param_null"
+        args="test_tf2/tf_null" />
+
+  <test test-name="test_static_publisher" pkg="test_tf2"
+        type="test_static_publisher" args="--text" />
+
+  <test test-name="test_static_publisher_py"
+        pkg="test_tf2"
+        type="test_static_publisher.py"
+        launch-prefix="python$(env ROS_PYTHON_VERSION)"/>
+</launch>

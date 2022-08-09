@@ -1,0 +1,24 @@
+<package>
+  <name>tf2_tools</name>
+  <version>0.7.5</version>
+  <description>
+    tf2_tools
+  </description>
+  <author>Wim Meeussen</author>
+  <maintainer email="tfoote@osrfoundation.org">Tully Foote</maintainer>
+  <license>BSD</license>
+
+  <url type="website">http://www.ros.org/wiki/tf2_tools</url>
+    
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>tf2_msgs</build_depend>
+  <build_depend>tf2</build_depend>
+  <build_depend>tf2_ros</build_depend>
+ 
+  <run_depend>tf2_msgs</run_depend>
+  <run_depend>tf2</run_depend>
+  <run_depend>tf2_ros</run_depend>
+
+</package>
+

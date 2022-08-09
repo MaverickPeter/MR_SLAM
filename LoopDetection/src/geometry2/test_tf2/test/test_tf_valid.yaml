@@ -1,0 +1,17 @@
+header:
+  seq: 0
+  stamp:
+    secs: 1619
+    nsecs: 601000000
+  frame_id: world
+child_frame_id: robot_calibration
+transform:
+  translation:
+    x: 0.75
+    y: 0.5
+    z: 1.0
+  rotation:
+    x: -0.62908825919
+    y: 0.210952809338
+    z: 0.640171445021
+    w: 0.38720459109

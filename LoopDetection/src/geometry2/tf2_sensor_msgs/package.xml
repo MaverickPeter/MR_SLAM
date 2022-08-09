@@ -1,0 +1,31 @@
+<package format="2">
+  <name>tf2_sensor_msgs</name>
+  <version>0.7.5</version>
+  <description>
+    Small lib to transform sensor_msgs with tf. Most notably, PointCloud2
+  </description>
+  <author>Vincent Rabaud</author>
+  <maintainer email="vincent.rabaud@gmail.com">Vincent Rabaud</maintainer>
+  <license>BSD</license>
+
+  <url type="website">http://www.ros.org/wiki/tf2_ros</url>
+
+  <buildtool_depend version_gte="0.5.6">catkin</buildtool_depend>
+
+  <build_depend>cmake_modules</build_depend>
+  <build_depend>eigen</build_depend>
+
+  <depend>sensor_msgs</depend>
+  <depend>tf2</depend>
+  <depend>tf2_ros</depend>
+
+  <exec_depend>python3-pykdl</exec_depend>
+  <exec_depend>rospy</exec_depend>
+
+  <build_export_depend>eigen</build_export_depend>
+
+  <test_depend>rostest</test_depend>
+  <test_depend>geometry_msgs</test_depend>
+
+</package>
+

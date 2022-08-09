@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="tf2_ros" type="static_transform_publisher" name="test_static_pub" args="5 6 7 0 0 0 1 a b" />
+  <node name="test_buffer_server" pkg="test_tf2" type="test_buffer_server" output="screen" />
+  <test test-name="test_buffer_client_test" pkg="test_tf2" type="test_buffer_client" args="--text"/>
+</launch>
