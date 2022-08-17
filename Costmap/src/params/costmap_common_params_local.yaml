@@ -1,0 +1,29 @@
+map_type: costmap
+global_frame: odom
+robot_base_frame: laser
+
+transform_tolerance: 1.0
+meter_scoring: true
+
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+# footprint: [[-0.64, -0.40], [-0.64, 0.40], [0.64, 0.40], [0.64, -0.40]]
+
+footprint_padding: 0.0
+
+plugins:
+ - {name: elevation_layer, type: "costmap_2d::ElevationMapLayer"}
+ - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+elevation_layer:
+  source_topic: "/robot_1/visual_map"
+
+
+inflation_layer:
+ enabled: true
+ inflation_radius: 0.10
+ cost_scaling_factor: 0.0
+
+# static_layer:
+#   enabled: false
+#   trinary_costmap: false
+

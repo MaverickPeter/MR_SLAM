@@ -1,0 +1,30 @@
+map_type: costmap
+global_frame: odom
+robot_base_frame: laser
+
+transform_tolerance: 1.0
+meter_scoring: true
+
+# footprint: [[-0.64, -0.40], [-0.64, 0.40], [0.64, 0.40], [0.64, -0.40]]
+footprint: [[-0.205, -0.155], [-0.205, 0.155], [0.077, 0.155], [0.077, -0.155]]
+
+
+footprint_padding: 0.0
+
+plugins:
+ - {name: points_layer, type: "costmap_2d::PointMapLayer"}
+ - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+
+points_layer:
+  enabled: true
+  source_topic: "/robot_1/history_point"
+
+inflation_layer:
+ enabled: true
+ inflation_radius: 0.00
+ cost_scaling_factor: 0.0
+
+static_layer:
+  enabled: false
+  trinary_costmap: false
+
