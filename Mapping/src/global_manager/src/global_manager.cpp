@@ -2114,7 +2114,7 @@ PointCloud GlobalManager::composeGlobalMap()
   PointCloud globalCloudUpdated;
   PointCloud localCloudUpdated;
 
-  local_map_stack.clear();
+  //local_map_stack.clear();
   local_maps.clear();
 
   auto start = system_clock::now();
