@@ -10,7 +10,7 @@
     A modularized multi-robot SLAM system with elevation mapping and a costmap converter for easy navigation. Different odometry and loop closure algorithms can be easily integrated into the system.
     <br />
     <br />
-    <a href="https://github.com/MaverickPeter/MR_SLAM">View Demo</a>
+    <a href="https://youtu.be/HY3bIPKINwk">View Demo</a>
     ·
     <a href="https://github.com/MaverickPeter/MR_SLAM/issues">Report Bug</a>
     ·
