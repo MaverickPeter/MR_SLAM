@@ -1,0 +1,53 @@
+language: cpp
+
+env:
+  jobs:
+    - PYTHON_VERSION=36
+    - PYTHON_VERSION=37
+    - PYTHON_VERSION=38
+
+services:
+  - docker
+before_install:
+  - docker pull matteoronchetti/cuda-builder
+script:
+  - docker run -v $(pwd):/code --env PYTHON_VERSION matteoronchetti/cuda-builder bash /code/travis/build.sh
+
+deploy:
+  - provider: s3
+    skip_cleanup: true
+
+    region: eu-west-1
+    bucket: rosh-public
+    local_dir: output
+    upload_dir: radon
+    dot_match: false
+    acl: public_read
+    overwrite: true
+    edge: true
+    access_key_id:
+      secure: N4VvbyMDH4Z499NxveYegavMFdk+n+VGybHcLISWAKlHMZjq8FTwwJ8MpbUjW+rjyDsb0GiK1sI4wzkagZ5CECJiVT2LYs4bzrdy3ZzE6IT6uQH1KcwKF1IWh+IGVNQtJWYBOF2oBSL1wn3Fx+gCEyNxh5SgRIbPBU+UIQ594TTiGfCN2rSacwOahtE9rnainUcHY0ZuFxEvI1BBA7r32FxPQaNfRCDythTZ6PGGCCGjPZtmL6uLKZRxi6RCcJQ5zgg723XPRl8KCrJCvsH7EJDyJ5XoerluXJtUVXlUFe6LCSQvmLjUItHVl7tC5cC9IM1VJuV6yJXqYGkyjFwdJpTTw70SIr8iv+wqpTfvXrGg7kcLYbPkrFWzQtf7pBPLE9lB2Ki7Gch31lWumq/l2v3jWvZVTvBD8nubYyvoKR6dlY8+OO9DMB8GGnU6nAatSZAS+7iHTdMjvNB/gKUY8z+51mL8X0RgQDnE3xSt2hRB9eBqKAQCX/Cj+IAqVUPnruGsPPBCCqw30YNUSsfcoENjoCDN7wRDyU8HC03dkcC3/zLYu25PHLCMHh1YQWzXrNBewwh663vNwQT2YYcdXOV14Z15BHk0eIAY8K/9GbM3RoDLQr03UQ6fbY1WylAwtAKsz61dMT6v+Xj3RGXCUJtHfCxgoJZCNRMKhPc+mq4=
+    secret_access_key:
+      secure: Zainr9HfLrBmNc6/NqlKs0doVqxn3PtnIi+HC0CwbDj5TCuvEDEjVoDvCbESW3YwK63jYiKVb8I8QU4oGTf1U/xJyYqSdvl4+8mSifWNE8dS3/9H6bqZVWVfML1KOqBnJY6U37w5UDGHH5R0eZnPXpjNDxe9+pavQXTp/SfFiQjt+UUC6hxztESyD/hInNK0YumZ3B7+2KSuD2g/hbdaY5BXAJX3V+adc2HSvZ7l9zPWmNPTt1ehmht4SWaLPgyc/T0rWVp6ELECx0oWINEXIiTkcB0tO5KE/wlYeU1uUztxJF73WsqzckLkqTdarLdCQIH1XdTn4EfM+VnP0N6oF5DezoX0EnHIbbr25MBWZmokdouWFTxW3T+9OFD65goDpQY/taCTqjNZ1vafcn7w5E3KGgzixPCOqxtocWJz4TBNOhHz0WJG2skTsAUz2UNJGtWtzioUjOKZcH7Uuh83XMUKG0B/mp8Uc1xwN38M4qYDexZAtpVvXgrltFi8K2VUWLxoKNHvCyiUMqR+eUTbrQqwnyK0jgxgq1a504oKAztB+B2QVFYQ5PejGCHk6jXWm9Mm4i5pbm1tymp6fvSl7vCkTXjf13VKlMo5yriiq111fswYHn/AMsnUVfyxENwoDISNKiz1MBUO5vIuyb4qEFJzCa8m3vADTQR8QKqkx/Q=
+
+    on:
+      branch: master
+
+  - provider: s3
+    skip_cleanup: true
+
+    region: eu-west-1
+    bucket: rosh-public
+    local_dir: output
+    upload_dir: radon-v2
+    dot_match: false
+    acl: public_read
+    overwrite: true
+    edge: true
+    access_key_id:
+      secure: N4VvbyMDH4Z499NxveYegavMFdk+n+VGybHcLISWAKlHMZjq8FTwwJ8MpbUjW+rjyDsb0GiK1sI4wzkagZ5CECJiVT2LYs4bzrdy3ZzE6IT6uQH1KcwKF1IWh+IGVNQtJWYBOF2oBSL1wn3Fx+gCEyNxh5SgRIbPBU+UIQ594TTiGfCN2rSacwOahtE9rnainUcHY0ZuFxEvI1BBA7r32FxPQaNfRCDythTZ6PGGCCGjPZtmL6uLKZRxi6RCcJQ5zgg723XPRl8KCrJCvsH7EJDyJ5XoerluXJtUVXlUFe6LCSQvmLjUItHVl7tC5cC9IM1VJuV6yJXqYGkyjFwdJpTTw70SIr8iv+wqpTfvXrGg7kcLYbPkrFWzQtf7pBPLE9lB2Ki7Gch31lWumq/l2v3jWvZVTvBD8nubYyvoKR6dlY8+OO9DMB8GGnU6nAatSZAS+7iHTdMjvNB/gKUY8z+51mL8X0RgQDnE3xSt2hRB9eBqKAQCX/Cj+IAqVUPnruGsPPBCCqw30YNUSsfcoENjoCDN7wRDyU8HC03dkcC3/zLYu25PHLCMHh1YQWzXrNBewwh663vNwQT2YYcdXOV14Z15BHk0eIAY8K/9GbM3RoDLQr03UQ6fbY1WylAwtAKsz61dMT6v+Xj3RGXCUJtHfCxgoJZCNRMKhPc+mq4=
+    secret_access_key:
+      secure: Zainr9HfLrBmNc6/NqlKs0doVqxn3PtnIi+HC0CwbDj5TCuvEDEjVoDvCbESW3YwK63jYiKVb8I8QU4oGTf1U/xJyYqSdvl4+8mSifWNE8dS3/9H6bqZVWVfML1KOqBnJY6U37w5UDGHH5R0eZnPXpjNDxe9+pavQXTp/SfFiQjt+UUC6hxztESyD/hInNK0YumZ3B7+2KSuD2g/hbdaY5BXAJX3V+adc2HSvZ7l9zPWmNPTt1ehmht4SWaLPgyc/T0rWVp6ELECx0oWINEXIiTkcB0tO5KE/wlYeU1uUztxJF73WsqzckLkqTdarLdCQIH1XdTn4EfM+VnP0N6oF5DezoX0EnHIbbr25MBWZmokdouWFTxW3T+9OFD65goDpQY/taCTqjNZ1vafcn7w5E3KGgzixPCOqxtocWJz4TBNOhHz0WJG2skTsAUz2UNJGtWtzioUjOKZcH7Uuh83XMUKG0B/mp8Uc1xwN38M4qYDexZAtpVvXgrltFi8K2VUWLxoKNHvCyiUMqR+eUTbrQqwnyK0jgxgq1a504oKAztB+B2QVFYQ5PejGCHk6jXWm9Mm4i5pbm1tymp6fvSl7vCkTXjf13VKlMo5yriiq111fswYHn/AMsnUVfyxENwoDISNKiz1MBUO5vIuyb4qEFJzCa8m3vADTQR8QKqkx/Q=
+
+    on:
+      branch: v2
