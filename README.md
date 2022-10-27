@@ -18,7 +18,10 @@
   </p>
 </div>
 
-
+<div align="center">
+<a href="https://youtu.be/HY3bIPKINwk" target="_blank"><img src="imgs/legged_robots_demo.jpg" alt="video" width="48%" /></a>
+<a href="https://youtu.be/MbjN_9PfxK0" target="_blank"><img src="imgs/NCLT_demo.jpg" alt="video" width="48%" /></a>
+</div>
 
 <!-- TABLE OF CONTENTS -->
 <details>
@@ -141,12 +144,18 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
    ```sh
    rosbag play 3_dog.bag --clock --pause
    ```
-4. Run DiSCO
+4. Run DiSCO / RING
    ```sh
    # !!!!! You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
    cd LoopDetection && source devel/setup.bash
-   rosrun disco_ros main.py 
+   
+   # DiSCO
+   rosrun disco_ros main.py
+   
+   # RING
+   cd src/RING_ros
+   python main.py
    ```
 5. Run global_manager 
    ```sh
@@ -189,7 +198,13 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
    # You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
    cd LoopDetection && source devel/setup.bash
-   rosrun disco_ros main.py 
+   
+   # DiSCO
+   rosrun disco_ros main.py
+   
+   # RING
+   cd src/RING_ros
+   python main.py
    ```
 4. Run global_manager 
    ```sh
