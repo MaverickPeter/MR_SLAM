@@ -1,40 +1,24 @@
-## Loop Detection Experiments
-### - Clients [client1]
+### Installation RING
 
-#### Filter
+#### 1. Use point cloud process module in cuda (cython wrapped)
+In [genreate_bev_cython_binary](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/generate_bev_cython_binary):
+```sh
+# To inplace install the cython wrapped module:
+python setup.py build_ext --inplace
 
-cd ~/Projects/DiSLAM-RING-centralized/filter/
-source devel/setup.bash (sdb)
-roslaunch filter_robot_1.launch 
-roslaunch filter_robot_2.launch 
-roslaunch filter_robot_3.launch 
+# or install in python/site_packages
+python setup.py install
 
-#### Fake Image
+# to test
+python test.py
 
-cd ~/Projects/DiSLAM-RING-centralized/fake_img/
-python robot_1.py
-python robot_2.py
-python robot_3.py
+# If you meet segmentation fault error, you may have overlarge number of points to process e.g. 67w. To tackle this problem you may need to change your system stack size by 'ulimit -s 81920' in your bash
+```
+If you choose to build_ext: you will have a voxelocc.cpythonxxx.so file and copy it to RING_ros where you can find a place holder. Note that the input of the wrapped point cloud process module you should scale the original point cloud to [-1~1] range for all axis. No extra process for point cloud such as downscale the points number.
 
-#### Elevation Mapping 
-
-cd ~/Projects/DiSLAM-RING-centralized/Mapping_ws/
-source devel/setup.bash (sdb)
-roslaunch elevation_mapping_demos 4800_1.launch 
-roslaunch elevation_mapping_demos 4800_2.launch 
-roslaunch elevation_mapping_demos 4800_3.launch 
-
-#### LIO
-
-cd ~/Projects/DiSLAM-RING-centralized/Localization_ws/
-source devel/setup.bash (sdb)
-roslaunch fast_lio 4800_1.launch
-roslaunch fast_lio 4800_2.launch
-roslaunch fast_lio 4800_3.launch
-(Change the distance threshold of published submaps by modifying the dis_th parameter in 4800_1.launch)
-
-#### Exploration
-
-cd ~/Projects/DiSLAM-RING-centralized/Exploration_ws/
-source devel/setup.bash (sdb)
-roslaunch move_base move_base_client_sim1.launch
+#### 2. torch-radon (radon transform)
+You can find the original README file in the torch-radon directory. You can simply follow the command below:
+```sh
+cd torch-radon
+python setup.py install
+```

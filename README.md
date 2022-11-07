@@ -51,7 +51,7 @@
 <!-- ABOUT THE PROJECT -->
 ## **About The Project**
 
-This is a C++ library with ROS interface to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), a pluggable loop closure method [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992). and a global manager that handles submaps, loop closure and back-end optimization. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and a 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
+This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
 
 **Author: Peter XU (Xuecheng XU)<br />
 Affiliation: [ZJU-Robotics Lab](https://github.com/ZJU-Robotics-Lab)<br />
@@ -60,6 +60,9 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
+## **NEWS (Nov, 2022): Tutorial**
+A chinese version of [Tutorial](https://maverickpeter.github.io/2022/11/03/MR_SLAM-tutorial/) is posted on my blog. 
+
 <!-- GETTING STARTED -->
 ## **Getting Started**
 
@@ -67,29 +70,27 @@ Here, we provide an example to demonstrate the system. Some parameters can be ch
 
 ### **Prerequisites**
 
-This software is built on the Robotic Operating System ([ROS]), which needs to be [installed](http://wiki.ros.org) first. Additionally, the MR_SLAM depends on following software:
+This software is built on the Robotic Operating System ([ROS](http://wiki.ros.org) tested on kinetic and melodic), which needs to be [installed](http://wiki.ros.org/ROS/Installation) first. Additionally, the MR_SLAM depends on following software:
 
-* [Eigen](http://eigen.tuxfamily.org) (linear algebra library, tested on 3.2.9 & 3.3.4; failed on 3.3.9)
+* [Eigen](http://eigen.tuxfamily.org) (linear algebra library, tested on 3.2.9 & 3.3.4; elevation_mapping failed on 3.3.9)
   
 * [CUDA](https://developer.nvidia.com/cuda-toolkit) (gpu process)
   
+* [Cython](https://github.com/cython/cython) (C extensions for Python)
+
 * [GTSAM](https://github.com/borglab/gtsam) (pose optimization)
 
 * [Grid Map](https://github.com/anybotics/grid_map) (grid map library for mobile robots)
   ```sh
   sudo apt install ros-$ROS_DISTRO-grid-map*
   ```
-* [OctoMap](https://github.com/OctoMap/octomap) (octomap library for multi-resolution)
-  ```sh
-  sudo apt install ros-$ROS_DISTRO-octomap*
-  ```
-* [Kindr](https://github.com/anybotics/kindr)
-  ```sh
-  Follow https://github.com/anybotics/kindr
-  ```
 * [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) (pluggable loop detector)
   ```sh
   Follow https://github.com/MaverickPeter/DiSCO-pytorch
+  ```
+* [RING](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/src/RING_ros) (pluggable loop detector)
+  ```sh
+  Follow the README in LoopDetection/src/RING_ros
   ```
 * [livox_ros_driver](https://github.com/Livox-SDK/livox_ros_driver) (for FAST_LIO2)
   ```sh
@@ -98,12 +99,20 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
 * [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
   ```sh
   # Fast GICP is already include in the repo. You can use 
-  git submodule sync
   git submodule init --recursive
+  git submodule sync
   git submodule update
 
   # or you can clone the repo and put them in the same place
   Follow https://github.com/SMRT-AIST/fast_gicp
+  ```
+* (optional - for elevation_mapping) [OctoMap](https://github.com/OctoMap/octomap) (octomap library for multi-resolution)
+  ```sh
+  sudo apt install ros-$ROS_DISTRO-octomap*
+  ```
+* (optional - for elevation_mapping) [Kindr](https://github.com/anybotics/kindr)
+  ```sh
+  Follow https://github.com/anybotics/kindr
   ```
 
 ### **Installation**
@@ -153,9 +162,11 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
    # DiSCO
    rosrun disco_ros main.py
    
-   # RING
+   # RING: If you encounter the PyInit__tf2 issue, use catkin_make with your python3 environment. Check installation section. 
    cd src/RING_ros
    python main.py
+      
+   # Note that if you add #!/home/client/miniconda3/envs/disco/bin/python3 in the first line of RING_ros/main.py you can also use rosrun RING_ros main.py to start the node.
    ```
 5. Run global_manager 
    ```sh
@@ -193,7 +204,24 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
    roslaunch elevation_mapping_demos robot_2.launch
    roslaunch elevation_mapping_demos robot_3.launch   
    ```
-3. Run DiSCO
+3. Run preprocess tools (in 3 terminals)
+   ```sh
+   # If robots don't have cameras, you have to create fake images for elevation_mapping
+
+   cd Tool/Fake_img
+   python robot_1.py
+   python robot_2.py
+   python robot_3.py
+
+   # If robots' point cloud are too large for real-time processing, you have to launch filters to accelerate.
+
+   cd Tool/Filters
+   roslaunch filter_robot_1.launch   
+   roslaunch filter_robot_2.launch   
+   roslaunch filter_robot_3.launch   
+
+   ```
+4. Run loop detection module
    ```sh
    # You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
@@ -206,14 +234,14 @@ This software is built on the Robotic Operating System ([ROS]), which needs to b
    cd src/RING_ros
    python main.py
    ```
-4. Run global_manager 
+5. Run global_manager 
    ```sh
    # Set parameters in Mapping/src/global_manager/launch/
 
    cd Mapping && source devel/setup.bash
    roslaunch global_manager global_manager.launch
    ```
-5. Visualization
+6. Visualization
    ```sh
    rviz -d Visualization/vis.rviz
    ```
