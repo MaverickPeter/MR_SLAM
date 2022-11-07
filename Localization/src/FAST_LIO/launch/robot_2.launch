@@ -1,6 +1,6 @@
 <launch>
-  <!-- Launch file for velodyne16 VLP-16 LiDAR -->
-    <param name="/use_sim_time" value="false" />
+
+    <param name="/use_sim_time" value="true" />
 
     <arg name="rviz" default="false" />
 

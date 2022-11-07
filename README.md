@@ -188,7 +188,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    
 1. Run fast-lio (in 3 terminals)
    ```sh
-   # Set parameters in Localization/src/FAST_LIO/launch/ and Localization/src/FAST_LIO/config/
+   # Set parameters in Localization/src/FAST_LIO/launch/ and Localization/src/FAST_LIO/config/ !!You need to set the scan_publish_en to true to send submaps
 
    cd Localization && source devel/setup.bash
    roslaunch fast_lio robot_1.launch
