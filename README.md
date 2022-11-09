@@ -37,9 +37,10 @@
         <li><a href="#installation">Installation</a></li>
       </ul>
     </li>
-    <li><a href="#quickdemo">Quick Demo</a></li>
-    <li><a href="#fullusage">Full Usage</a></li>
+    <li><a href="#quick-demo">Quick Demo</a></li>
+    <li><a href="#full-usage">Full Usage</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
+    <li><a href="#citation">Citation</a></li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#license">License</a></li>
     <li><a href="#contact">Contact</a></li>
@@ -143,7 +144,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-<!-- QUICK DEMO -->
+<!-- QUICKDEMO -->
 ## **Quick Demo**
 1. Get rosbag from [Google Drive](https://drive.google.com/file/d/1KNrzvpfeuiQ8i-zUvlKbsn-iTIPJOQh8/view?usp=sharing) or [Baidu Pan](https://pan.baidu.com/s/1dcDRyn-G7TilFpc8shLQNA?pwd=gupx) with **extract code: gupx**
 
@@ -182,7 +183,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 
 
 
-<!-- FULL USAGE EXAMPLES -->
+<!-- FULLUSAGE -->
 ## **Full Usage**
 0. Run roscore
    
@@ -262,6 +263,16 @@ See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a ful
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
+<!-- CITATION -->
+## **Citation**
+If you find this repo useful to your project, please consider to cite it with following bib:
+
+    @article{xu2022ring++,
+          title={RING++: Roto-translation Invariant Gram for Global Localization on a Sparse Scan Map},
+          author={Xu, Xuecheng and Lu, Sha and Wu, Jun and Lu, Haojian and Zhu, Qiuguo and Liao, Yiyi and Xiong, Rong and Wang, Yue},
+          journal={arXiv preprint arXiv:2210.05984},
+          year={2022}
+    }
 
 <!-- CONTRIBUTING -->
 ## **Contributing**
