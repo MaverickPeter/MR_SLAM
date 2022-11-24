@@ -48,6 +48,9 @@ PC3 = []
 DiSCO1 = []
 DiSCO2 = []
 DiSCO3 = []
+FFT1 = []
+FFT2 = []
+FFT3 = []
 yaw_diff_pc = []
 
 f = open("./loopinfo.txt", "w")
@@ -84,7 +87,7 @@ def generate_DiSCO(input_cloud):
 
     out, _, fft_result, _ = infer_model(model, corr2soft, query)
     out = out.squeeze()
-    return out.detach().cpu().numpy()
+    return out.detach().cpu().numpy(), fft_result
 
 
 # process pointcloud for inference
@@ -104,6 +107,7 @@ def load_pc_infer(pc):
     hits[...,0] = hits[...,0] / 70.
     hits[...,1] = hits[...,1] / 70.
     hits[...,2] = (hits[...,2]) / 30.
+
 
     pc = np.array(hits, dtype=np.float32)
     size = pc.shape[0]
@@ -255,11 +259,7 @@ def fftshift2d(x):
 
 def phase_corr(a, b, device, corr2soft):
     # a: template; b: source
-    # imshow(a.squeeze(0).float())
-    # [B, 1, cfg.num_ring, cfg.num_sector, 2]
     eps = 1e-15
-    a = torch.from_numpy(a).cuda().unsqueeze(0)
-    b = torch.from_numpy(b).cuda().unsqueeze(0)
     corr = torch.fft.ifft2(a*b.conj(), norm="ortho")
     corr = torch.sqrt(corr.imag**2 + corr.real**2 + eps)
     corr = fftshift2d(corr)
@@ -273,8 +273,8 @@ def phase_corr(a, b, device, corr2soft):
 
 
 # perform loop detection and apply icp
-def detect_loop_icp(robotid_current, idx_current, pc_current, DiSCO_current, \
-                        robotid_candidate, pc_candidates, DiSCO_candidates):
+def detect_loop_icp(robotid_current, idx_current, pc_current, DiSCO_current, fft_current, \
+                        robotid_candidate, pc_candidates, DiSCO_candidates, FFT_candidates):
     
     num_candidates = 1
 
@@ -286,11 +286,11 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, DiSCO_current, \
 
     for i in range(num_candidates):
         idx_sc = idxs_pc[0][i]
-        DiSCO_candidate = DiSCO_candidates[idx_sc] 
-        yaw_pc, _ = phase_corr(DiSCO_candidate, DiSCO_current, device, corr2soft)
+        FFT_candidate = FFT_candidates[idx_sc] 
+        yaw_pc, _ = phase_corr(FFT_candidate, fft_current, device, corr2soft)
         
         if yaw_pc < cfg.num_sector//2:
-            yaw_pc = (cfg.num_sector//2 - yaw_pc) / float(cfg.num_sector) * 360.    # convert to degree
+            yaw_pc = (cfg.num_sector//2 - yaw_pc) / float(cfg.num_sector) * 360.
         else:
             yaw_pc = (yaw_pc - cfg.num_sector//2) / float(cfg.num_sector) * 360.
 
@@ -358,7 +358,7 @@ def callback1(data):
 
     # generate DiSCO and TIDiSCO descriptors
     times = time.time()
-    pc_DiSCO = generate_DiSCO(pc_normalized)
+    pc_DiSCO, fft_result = generate_DiSCO(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
 
@@ -368,15 +368,16 @@ def callback1(data):
     # detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC1, DiSCO1)
     # candidate robot id: 2
     robotid_candidate = 1
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC2, DiSCO2)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC2, DiSCO2, FFT2)
     # candidate robot id: 3
     robotid_candidate = 2
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC3, DiSCO3)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC3, DiSCO3, FFT3)
 
     Pose1.append(se3)
     Time1.append(timestamp)
     PC1.append(pc)
     DiSCO1.append(pc_DiSCO)
+    FFT1.append(fft_result)
 
 
 def callback2(data):
@@ -407,25 +408,26 @@ def callback2(data):
 
     # generate DiSCO and TIDiSCO descriptors
     times = time.time()
-    pc_DiSCO = generate_DiSCO(pc_normalized)
+    pc_DiSCO, fft_result = generate_DiSCO(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
 
     # detect the loop and apply icp
     # candidate robot id: 1
     robotid_candidate = 0
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC1, DiSCO1)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC1, DiSCO1, FFT1)
     # candidate robot id: 2
     # robotid_candidate = 1
     # detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC2, DiSCO2)
     # candidate robot id: 3
     robotid_candidate = 2
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC3, DiSCO3)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC3, DiSCO3, FFT3)
 
     Pose2.append(se3)
     Time2.append(timestamp)
     PC2.append(pc)
     DiSCO2.append(pc_DiSCO)
+    FFT2.append(fft_result)
 
 
 def callback3(data):
@@ -456,17 +458,17 @@ def callback3(data):
 
     # generate DiSCO and TIDiSCO descriptors
     times = time.time()
-    pc_DiSCO = generate_DiSCO(pc_normalized)
+    pc_DiSCO, fft_result = generate_DiSCO(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
 
     # detect the loop and apply icp
     # candidate robot id: 1
     robotid_candidate = 0
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC1, DiSCO1)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC1, DiSCO1, FFT1)
     # candidate robot id: 2
     robotid_candidate = 1
-    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, robotid_candidate, PC2, DiSCO2)
+    detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO, fft_result, robotid_candidate, PC2, DiSCO2, FFT2)
     # candidate robot id: 3
     # robotid_candidate = 2
     # detect_loop_icp(robotid_current, idx_current, pc, pc_DiSCO,, robotid_candidate, PC3, DiSCO3)
@@ -475,6 +477,7 @@ def callback3(data):
     Time3.append(timestamp)
     PC3.append(pc)
     DiSCO3.append(pc_DiSCO)
+    FFT3.append(fft_result)
 
 
 if __name__ == "__main__":
