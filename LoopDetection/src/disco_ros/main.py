@@ -105,7 +105,6 @@ def load_pc_infer(pc):
     hits[...,1] = hits[...,1] / 70.
     hits[...,2] = (hits[...,2]) / 30.
 
-
     pc = np.array(hits, dtype=np.float32)
     size = pc.shape[0]
 
@@ -291,16 +290,16 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, DiSCO_current, \
         yaw_pc, _ = phase_corr(DiSCO_candidate, DiSCO_current, device, corr2soft)
         
         if yaw_pc < cfg.num_sector//2:
-            yaw_pc = (cfg.num_sector//2 - yaw_pc) / float(cfg.num_sector) * 360.
+            yaw_pc = (cfg.num_sector//2 - yaw_pc) / float(cfg.num_sector) * 360.    # convert to degree
         else:
             yaw_pc = (yaw_pc - cfg.num_sector//2) / float(cfg.num_sector) * 360.
 
         yaw_diff_pc.append(yaw_pc)
         idx_top1_pc = idxs_pc[0][0]
 
-        pred_angle_degree = yaw_diff_pc[0] # in degree
-        pred_angle_rad = pred_angle_degree*np.pi/180.
-        init_pose_pc = getSE3(0, 0, pred_angle_pc)
+        pred_angle_deg = yaw_diff_pc[0] # in degree
+        pred_angle_rad = pred_angle_deg * np.pi / 180.
+        init_pose_pc = getSE3(0, 0, pred_angle_rad)
 
         pc_matched_pc = pc_candidates[idx_top1_pc]
         fitness_pc, loop_transform = fast_gicp(pc_current, pc_matched_pc, max_correspondence_distance=cfg.icp_max_distance, init_pose=init_pose_pc)
@@ -427,7 +426,6 @@ def callback2(data):
     Time2.append(timestamp)
     PC2.append(pc)
     DiSCO2.append(pc_DiSCO)
-
 
 
 def callback3(data):
