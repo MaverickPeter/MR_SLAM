@@ -288,11 +288,7 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, DiSCO_current, fft
         idx_sc = idxs_pc[0][i]
         FFT_candidate = FFT_candidates[idx_sc] 
         yaw_pc, _ = phase_corr(FFT_candidate, fft_current, device, corr2soft)
-        
-        if yaw_pc < cfg.num_sector//2:
-            yaw_pc = (cfg.num_sector//2 - yaw_pc) / float(cfg.num_sector) * 360.
-        else:
-            yaw_pc = (yaw_pc - cfg.num_sector//2) / float(cfg.num_sector) * 360.
+        yaw_pc = (yaw_pc - cfg.num_sector//2) / float(cfg.num_sector) * 360.
 
         yaw_diff_pc.append(yaw_pc)
         idx_top1_pc = idxs_pc[0][0]

@@ -40,6 +40,8 @@
     <param name="disco_dim" value="1024"/>
     <param name="disco_width" value="120"/>
     <param name="disco_height" value="40"/>
+    <!-- pcm_thresh lower is better, only support 0.01, 0.05, 0.1, 0.25, 0.5, 0.75; which indicate confidence of (1.0-pcm_thresh) -->
+    <param name="pcm_thresh" value="0.01"/>
     <param name="loop_detection_rate" value="0.1"/>
     <param name="pose_graph_pub_rate" value="1"/>
     <param name="DiSCO_dist_thres" value="17.0"/>

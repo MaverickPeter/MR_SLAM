@@ -180,6 +180,7 @@ private:
   bool manualRobotConfig_;
   bool enableElevationMapping_;
   double disco_dim_;
+  double pcm_thresh_;
   double icp_iters_;
   double submap_size_;
   double disco_width_;

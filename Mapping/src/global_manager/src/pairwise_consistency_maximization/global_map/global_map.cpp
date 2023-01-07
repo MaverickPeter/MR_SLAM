@@ -5,11 +5,13 @@
 #include <math.h>
 #include <gtsam/inference/Symbol.h>
 #include <iostream>
+#include <sys/stat.h>
+#include <sys/types.h> 
 
 #ifdef LOG_DIR
 #define DIR LOG_DIR
 #else
-#define DIR "../../"
+#define DIR "/tmp/"
 #endif
 
 namespace global_map {
@@ -35,6 +37,8 @@ std::pair<std::vector<int>, int> GlobalMap::pairwiseConsistencyMaximization() {
     Eigen::MatrixXi consistency_matrix = pairwise_consistency_.computeConsistentMeasurementsMatrix();
 
     char robot_id = gtsam::Symbol(pairwise_consistency_.getTransformsRobot1().start_id).chr();
+    mkdir(GlobalMap::LOG_DIRECTORY.c_str(),S_IRUSR | S_IWUSR | S_IXUSR | S_IRWXG | S_IRWXO);
+
     std::string consistency_matrix_file = CONSISTENCY_MATRIX_FILE_NAME + "_" + robot_id + ".clq.mtx";
 
     graph_utils::printConsistencyGraph(consistency_matrix, consistency_matrix_file);

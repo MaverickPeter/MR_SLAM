@@ -24,6 +24,7 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   private_nh.param("enable_elevation_mapping", enableElevationMapping_, false);
 
   private_nh.param("disco_dim", disco_dim_, 1.0);
+  private_nh.param("pcm_thresh", pcm_thresh_, 0.01);  
   private_nh.param("icp_iters", icp_iters_, 10.0);
   private_nh.param("submap_size", submap_size_, 5.0);
   private_nh.param("disco_width", disco_width_, 120.0);
@@ -1224,26 +1225,12 @@ vector<int> GlobalManager::constructOptimizer(bool savingMode)
     Values initial = *(graphAndValuesG2o.second);
     initial_size[robot] = initial.size();
 
-    cout << "robot: " << robot << endl;
-    cout << "nrRobots: " << nrRobots << endl;
-    cout << "graphAndValuesVec: " << graphAndValuesVec.size() << endl;
-    cout << "initial: " << initial.size() << endl;
-
-    for(size_t it = 0; it < nrRobots; it++){
-      string distOptimized = "/home/client/graph/" + boost::lexical_cast<string>(it) + ".g2o";
-      writeG2o(*graphAndValuesVec[it].first, *graphAndValuesVec[it].second, distOptimized);
-    } 
-
     // Continue if empty
     if(initial.empty()){
       // disconnectedGraph = true;
       cout << "initial empty" << endl;
       continue;
     }
-
-    // Construct graphAndValues using cleaned up initial values
-    // GraphAndValues graphAndValues = make_pair(graphAndValuesG2o.first, boost::make_shared<Values>(initial));
-    // DistGraphAndValuesVec.push_back(graphAndValuesG2o);
 
     // Use between noise or not in optimizePoses
     distMapper->setUseBetweenNoiseFlag(useBetweenNoise);
@@ -1272,10 +1259,6 @@ vector<int> GlobalManager::constructOptimizer(bool savingMode)
     }else{
       DistGraphAndValuesVec.push_back(graphAndValuesG2o);
     }
-      
-    // Number of communication links
-    // vector<size_t> commEdges = distMapper->seperatorEdge();
-    // nrCommLinks+=commEdges.size();
 
     // Push to the set of optimizers
     distMappers.push_back(distMapper);
@@ -1309,6 +1292,14 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
   cout << "DisconnectedGraph Flag: " << disconnectedGraph << endl;
   if(!disconnectedGraph){
     try{
+
+      int max_clique_size = 0;
+      bool use_flagged_init = true;
+      bool use_covariance = false;
+      bool use_heuristics = true;
+      auto max_clique_info = distributed_pcm::DistributedPCM::solveCentralized(distMappers, DistGraphAndValuesVec,
+                                                            pcm_thresh_, use_covariance, use_heuristics);
+      max_clique_size = max_clique_info.first;
       // int max_clique_size = 0;
       // double pcm_threshold = 0.5;
       // double pose_estimate_change_threshold = 1e-2;
@@ -1509,8 +1500,6 @@ GraphAndValues GlobalManager::readFullGraph()
 
   for(size_t robot = 0; robot < DistGraphAndValuesVec.size(); robot++){
     
-    // int robot = robotIDSortedIndex[iter];
-
     // Load graph and initial
     NonlinearFactorGraph graph = *(DistGraphAndValuesVec[robot].first);
     Values initial = *(DistGraphAndValuesVec[robot].second);
@@ -1686,7 +1675,6 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
   // Add tracjectory(pose) to robotHandle
   traj.pretranslate(Eigen::Vector3f(msg->pose.position.x, msg->pose.position.y, msg->pose.position.z));
   subscription.trajectory.emplace_back(traj);
-  // cout << "traj: " << traj.matrix() << endl;
 
   Eigen::Isometry3f trajUpdated = currentRef[robotid] * traj;
 
@@ -1762,7 +1750,6 @@ void GlobalManager::mapUpdate(const dislam_msgs::SubMapConstPtr& msg,
     Point3 t_init = Point3(0,0,0);
     uint64_t id0, id1;
 
-    // std::lock_guard<std::mutex> mapTFLock(map_tf_mutex);
     if(manualRobotConfig_){
       // TF with manual setup
       mapTF[robotid] = initPoses[robotid];
@@ -2135,7 +2122,7 @@ PointCloud GlobalManager::composeGlobalMap()
       pcl::fromROSMsg(srv.response.submap, *initSubmap);
       local_map_stack[subscription.robot_id - start_robot_id_] = *initSubmap;
     }else{
-      ROS_ERROR("Failed to call service init map");
+      ROS_WARN("Failed to call service init map");
     }
     init_state_vec.emplace_back(subscription.initState);
   }

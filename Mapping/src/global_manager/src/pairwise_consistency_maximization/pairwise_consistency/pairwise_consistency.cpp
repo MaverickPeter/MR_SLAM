@@ -129,7 +129,10 @@ graph_utils::ConsistencyErrorData PairwiseConsistency::computeConsistencyError(
 }
 
 double PairwiseConsistency::computeSquaredMahalanobisDistance(const graph_utils::ConsistencyErrorData& consistency_error) {
-    double distance = std::sqrt(  consistency_error.first.transpose() * consistency_error.second.inverse() * consistency_error.first  );
+    Eigen::Matrix< double, 6, 1> cov;
+    cov << 1.0, 1.0, 1.0, 1.0, 1.0, 1.0;
+    Eigen::Matrix< double, 6, 6> m_cov = cov.array().matrix().asDiagonal();
+    double distance = std::sqrt(  consistency_error.first.transpose() * m_cov * consistency_error.first  );
     return distance;
 }
 
