@@ -172,6 +172,7 @@ private:
   ros::NodeHandle node_;
 
   /* node parameters */
+  bool use_pcm;
   bool publish_tf;
   bool loopClosureEnable_;
   bool odometryLoopEnable_;  

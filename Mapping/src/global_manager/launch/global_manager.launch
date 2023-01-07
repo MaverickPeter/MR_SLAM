@@ -9,6 +9,7 @@
     <param name="logger_level" value="Info"/>
 
     <!-- bool -->
+    <param name="use_pcm" value="true"/>
     <param name="publish_tf" value="true"/>
     <param name="loop_closure_enable" value="true"/>
     <param name="use_other_descriptor" value="true"/>

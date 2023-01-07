@@ -14,6 +14,7 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   std::string merged_elevation_map_topic, merged_pointcloud_topic, pose_graph_topic, opt_state_topic;
 
   // Get parameters from launch file
+  private_nh.param("use_pcm", use_pcm, true);
   private_nh.param("publish_tf", publish_tf, true);
   private_nh.param("loop_detection_debug", debug, true);
   private_nh.param("loop_closure_enable", loopClosureEnable_, true);
@@ -1292,14 +1293,16 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
   cout << "DisconnectedGraph Flag: " << disconnectedGraph << endl;
   if(!disconnectedGraph){
     try{
-
-      int max_clique_size = 0;
-      bool use_flagged_init = true;
-      bool use_covariance = false;
-      bool use_heuristics = true;
-      auto max_clique_info = distributed_pcm::DistributedPCM::solveCentralized(distMappers, DistGraphAndValuesVec,
-                                                            pcm_thresh_, use_covariance, use_heuristics);
-      max_clique_size = max_clique_info.first;
+      if(use_pcm){
+        int max_clique_size = 0;
+        bool use_flagged_init = true;
+        bool use_covariance = false;
+        bool use_heuristics = true;
+        auto max_clique_info = distributed_pcm::DistributedPCM::solveCentralized(distMappers, DistGraphAndValuesVec,
+                                                              pcm_thresh_, use_covariance, use_heuristics);
+        max_clique_size = max_clique_info.first;
+      }
+      
       // int max_clique_size = 0;
       // double pcm_threshold = 0.5;
       // double pose_estimate_change_threshold = 1e-2;

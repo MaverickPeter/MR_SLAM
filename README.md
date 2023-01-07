@@ -61,7 +61,9 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-## **NEWS (Nov, 2022): Tutorial**
+## **NEWS (Jan, 2023): Support PCM**
+Support PCM (Pairwise Consistent Measurement) for robustness.
+
 A chinese version of [Tutorial](https://maverickpeter.github.io/2022/11/03/MR_SLAM-tutorial/) is posted on my blog. 
 
 <!-- GETTING STARTED -->
@@ -254,6 +256,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 <!-- ROADMAP -->
 ## **Roadmap**
 
+- [x] Add PCM.
 - [ ] Optimize code.
 - [ ] Add more pluggable loop closure methods.
 - [ ] Support more front-end odometry.
