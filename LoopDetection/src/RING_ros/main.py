@@ -97,7 +97,7 @@ def fast_gicp(source, target, max_correspondence_distance=1.0, init_pose=np.eye(
     T_matrix = gicp.align(initial_guess=init_pose)
 
     # get the fitness score
-    fitness = gicp.get_fitness_score(max_range=1.0)
+    fitness = gicp.get_fitness_score(1.0)
     # get the transformation matrix
     T_matrix = gicp.get_final_transformation()
 

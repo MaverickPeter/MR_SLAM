@@ -1,4 +1,6 @@
-#pragma once
+
+#ifndef EVALUATION_UTILS_H
+#define EVALUATION_UTILS_H
 
 #include <distributed_mapper/between_chordal_factor.h>
 #include <gtsam/slam/InitializePose3.h>
@@ -12,8 +14,10 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Rot3.h>
 #include <gtsam/inference/Symbol.h>
+#include <distributed_mapper/LabeledSymbol.h>
 #include <boost/lexical_cast.hpp>
 #include <fstream>      // std::fstream
+
 
 namespace distributed_mapper{
 
@@ -24,9 +28,9 @@ namespace distributed_mapper{
   for(size_t i = 0; i < nr_robots; i++){ \
   gtsam::VectorValues result = distributed.at(i); \
   BOOST_FOREACH(const VectorValues::KeyValuePair& key_value, result) { \
-  gtsam::Symbol key = key_value.first; \
-  char robot = gtsam::symbolChr(key); \
-  int index = gtsam::symbolIndex(key); \
+  gtsam::LabeledSymbol key = key_value.first; \
+  char robot = key.robot_id()); \
+  int index = key.index()); \
   if(index == 9999999) continue; \
   EXPECT(assert_equal(centralized.at(index), key_value.second, , tol));\
 } \
@@ -39,8 +43,8 @@ namespace distributed_mapper{
   for(size_t i = 0; i < nr_robots; i++){ \
   gtsam::Values result = distributed.at(i); \
   for(const Values::KeyValuePair& key_value: result) { \
-  gtsam::Symbol key = key_value.key; \
-  int index = gtsam::symbolIndex(key); \
+  gtsam::LabeledSymbol key = key_value.key; \
+  int index = key.index(); \
   Pose3 actual = result.at<Pose3>(key); \
   EXPECT(assert_equal(centralized.at<Pose3>(index), actual, tol));\
 } \
@@ -53,7 +57,7 @@ namespace distributed_mapper{
   for(size_t i = 0; i < nr_robots; i++){ \
   gtsam::Values result = distributed.at(i); \
   for(const Values::KeyValuePair& key_value: result) { \
-  gtsam::Symbol key = key_value.key; \
+  gtsam::LabeledSymbol key = key_value.key; \
   Pose3 actual = result.at<Pose3>(key); \
   EXPECT(assert_equal(centralized.at<Pose3>(key), actual, tol));\
 } \
@@ -84,16 +88,16 @@ namespace distributed_mapper{
     gtsam::Vector rowMajorVector(const gtsam::Matrix3& R);
 
     /**
-   * @brief pose3WithZeroTranslation sets to zero the translation part
+   * @brief pose3WithZeroTranslation sets to Zero the translation part
    */
     gtsam::Values pose3WithZeroTranslation(const gtsam::Values& rotations);
 
 
-    /** @brief initializeVectorValues use the keys from the input Values and set vector to zero(6) */
+    /** @brief initializeVectorValues use the keys from the input Values and set vector to Zero(6) */
     gtsam::VectorValues initializeVectorValues(const gtsam::Values& rotations);
 
     /**
-   * @brief initializeZeroRotation iterates over rotations and puts zero vector
+   * @brief initializeZeroRotation iterates over rotations and puts Zero vector
    */
     gtsam::VectorValues
     initializeZeroRotation(const gtsam::Values& sub_initials);
@@ -154,7 +158,7 @@ namespace distributed_mapper{
    * @param noise is shared noise model
    * @return converted noise
    */
-    gtsam::SharedNoiseModel convertToChordalNoise(const gtsam::SharedNoiseModel& noise, const gtsam::Matrix& Rhat = gtsam::eye(3));
+    gtsam::SharedNoiseModel convertToChordalNoise(const gtsam::SharedNoiseModel& noise, const gtsam::Matrix& Rhat = Eigen::MatrixXd::Identity(3, 3));
 
 
     /**
@@ -223,3 +227,5 @@ namespace distributed_mapper{
   }
 
 }
+
+#endif

@@ -19,6 +19,7 @@
     <node pkg="fast_lio" type="my_node" name="LIO_Publisher_client2" output="screen">
       <param name="RobotID" type="int" value="2" />
       <param name="NameSpace" type="string" value="robot_2" /> 
+      <param name="SensorName" type="string" value="os_sensor" /> 
       <param name="dis_th" type="double" value="1.5" />
     </node>
 

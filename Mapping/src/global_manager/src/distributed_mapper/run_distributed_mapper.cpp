@@ -25,7 +25,7 @@ std::tuple<double, double, int> runDistributedMapper(const size_t& nr_robots, co
   if (use_XY) {
     robot_names_ = string("xyz"); // robot names
   } else {
-    robot_names_ = string("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"); // robot names
+    robot_names_ = string("ABCDEFGHIJKLMNOPQRSTUVWXYZ"); // robot names
   }
 
   if (use_OP) {
@@ -33,7 +33,7 @@ std::tuple<double, double, int> runDistributedMapper(const size_t& nr_robots, co
   }
 
   if (use_landmarks) {
-    robot_names_ = string("abcdefghijklmnopqrstyvwxyz"); // robot names
+    robot_names_ = string("ABCDEFGHIJKLMNOPQRSTUVWXYZ"); // robot names
     // ABC... are used for objects
   }
 
@@ -91,7 +91,7 @@ std::tuple<double, double, int> runDistributedMapper(const size_t& nr_robots, co
     std::set<char> neighboring_robots = dist_mapper->getNeighboringChars();
     if (neighboring_robots.size() == 0)
       disconnected_graph_ = true;
-
+      
     // Push to the set of optimizers
     dist_mappers.push_back(dist_mapper);
   }
@@ -116,7 +116,7 @@ std::tuple<double, double, int> runDistributedMapper(const size_t& nr_robots, co
                                                        pose_estimate_change_threshold,
                                                        use_flagged_init, use_landmarks, debug, true,
                                                        pcm_threshold, use_covariance, use_PCM, use_heuristics,
-                                                       graph_and_values_vec,
+                                                       data_dir, graph_and_values_vec, 
                                                        rotation_trace, pose_trace, subgraph_rotation_trace,
                                                        subgraph_pose_trace, rotation_vector_values_trace);
 
@@ -156,9 +156,10 @@ std::tuple<double, double, int> runDistributedMapper(const size_t& nr_robots, co
 
       return std::make_tuple(std::get<0>(errors), std::get<1>(errors), max_clique_size);
     }
-    catch (...) {
+    catch (std::exception& e) {
       // Optimization failed (maybe due to disconnected graph)
       // Copy initial to optimized g2o files in that case
+      cout << "Optimization failed " << e.what() << endl;
       evaluation_utils::copyInitial(nr_robots, data_dir);
     }
   } else {

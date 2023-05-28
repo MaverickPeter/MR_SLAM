@@ -152,7 +152,7 @@ void addNormal(PointCloudIPtr cloud, PointCloudINPtr cloudWithNormals);
 
 void getFileNames(string path, std::vector<string>& files);
 
-void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f>& poses, int start_robot_id_);
+void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>>& poses, int start_robot_id_);
 
 std::vector<int> sort_indexes(const std::vector<int> v);
 
@@ -309,7 +309,7 @@ private:
   std::vector<int> robotIDStack;  // save robotid
   std::vector<string> configFiles;  // save config absolute filenames
   std::unordered_map<std::string, robotHandle_*> robots_;
-  std::vector<Eigen::Isometry3f> initPoses;
+  std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> initPoses;
   std::vector<std::string> robotNameVec;
 
   // owns maps -- iterator safe

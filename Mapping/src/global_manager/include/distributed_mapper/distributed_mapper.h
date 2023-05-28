@@ -24,10 +24,13 @@ namespace distributed_mapper{
 
 
 // Static Consts
-static const gtsam::Matrix I9 = gtsam::eye(9);
-static const gtsam::Vector zero9 = gtsam::Vector::Zero(9);
+static const gtsam::Matrix I9 = Eigen::MatrixXd::Identity(9,9);
+static const gtsam::Vector Zero9 = gtsam::Vector::Zero(9);
 static const size_t max_iter_ = 1000;
-static const gtsam::Key key_anchor_ = gtsam::symbol('Z', 9999999);
+
+#define GRAPH_LABEL 'g'
+
+static const gtsam::Key key_anchor_ = gtsam::LabeledSymbol(GRAPH_LABEL, 'A', 0);
 
 /**
  * @brief The DistributedMapper class runs distributed mapping algorithm
@@ -50,7 +53,7 @@ class DistributedMapper{
       rot_subgraph_ = gtsam::GaussianFactorGraph();
       initial_ = gtsam::Values();
       neighbors_ = gtsam::Values();
-      loopclosures_symbols_ = std::vector<std::pair<gtsam::Symbol, gtsam::Symbol>>();
+      loopclosures_symbols_ = std::vector<std::pair<gtsam::LabeledSymbol, gtsam::LabeledSymbol>>();
       rotation_error_trace_ = std::vector<double>();
       pose_error_trace_ = std::vector<double>();
       rotation_estimate_change_trace_ = std::vector<double>();
@@ -77,7 +80,7 @@ class DistributedMapper{
       rot_subgraph_ = gtsam::GaussianFactorGraph();
       initial_ = gtsam::Values();
       neighbors_ = gtsam::Values();
-      loopclosures_symbols_ = std::vector<std::pair<gtsam::Symbol, gtsam::Symbol>>();
+      loopclosures_symbols_ = std::vector<std::pair<gtsam::LabeledSymbol, gtsam::LabeledSymbol>>();
       rotation_error_trace_ = std::vector<double>();
       pose_error_trace_ = std::vector<double>();
       rotation_estimate_change_trace_ = std::vector<double>();
@@ -141,7 +144,7 @@ class DistributedMapper{
 
     /** @brief addPriorToSubgraph adds prior to a subgraph "id" at particular symbol "sym"  */
     void
-    addPrior(const gtsam::Symbol& sym,  const gtsam::Pose3& prior_pose, const gtsam::SharedNoiseModel& prior_model){
+    addPrior(const gtsam::LabeledSymbol& sym,  const gtsam::Pose3& prior_pose, const gtsam::SharedNoiseModel& prior_model){
       gtsam::NonlinearFactor::shared_ptr factor(new gtsam::PriorFactor<gtsam::Pose3>(sym, prior_pose, prior_model));
       graph_.push_back(factor);
       inner_edges_.add(factor);
@@ -206,10 +209,10 @@ class DistributedMapper{
     gtsam::Values neighbors() {return neighbors_;}
 
     /** @brief neighbors returns the loopclosures factor symbols  */
-    std::vector<std::pair<gtsam::Symbol, gtsam::Symbol>> separatorsSymbols() {return loopclosures_symbols_;}
+    std::vector<std::pair<gtsam::LabeledSymbol, gtsam::LabeledSymbol>> separatorsSymbols() {return loopclosures_symbols_;}
 
     /** @brief erase loopclosures factor symbols  */
-    void eraseseparatorsSymbols(const std::pair<gtsam::Symbol, gtsam::Symbol>& symbols) {
+    void eraseseparatorsSymbols(const std::pair<gtsam::LabeledSymbol, gtsam::LabeledSymbol>& symbols) {
       auto it = std::find(loopclosures_symbols_.begin(), loopclosures_symbols_.end(), symbols);
       if (it != loopclosures_symbols_.end()) {
         loopclosures_symbols_.erase(it);
@@ -267,7 +270,7 @@ class DistributedMapper{
     void addFactor(const gtsam::NonlinearFactor::shared_ptr& factor){
       graph_.push_back(factor);
       gtsam::KeyVector keys = factor->keys();
-      if(gtsam::symbolChr(keys.at(0)) == gtsam::symbolChr(keys.at(1))){
+      if(gtsam::LabeledSymbol(keys.at(0)).robot_id() == gtsam::LabeledSymbol(keys.at(1)).robot_id()){
         inner_edges_.push_back(factor);
 
         // Chordal factor
@@ -302,7 +305,7 @@ class DistributedMapper{
       }
       else{
         neighbors_.insert(key, pose);
-        neighbors_linearized_poses_.insert(key, gtsam::zero(6));
+        neighbors_linearized_poses_.insert(key, gtsam::Vector::Zero(6));
         gtsam::Matrix3 R = pose.rotation().matrix();
         gtsam::Vector r = evaluation_utils::rowMajorVector(R);
         neighbors_linearized_rotations_.insert(key, r);
@@ -358,7 +361,7 @@ class DistributedMapper{
     gtsam::Vector neighborsLinearizedRotationsAt(const gtsam::Key& key){ return neighbors_linearized_rotations_.at(key); }
 
 
-    /** @brief convertLinearizedRotationToPoses iterates over linearized rotations and convert them to poses with zero translation  */
+    /** @brief convertLinearizedRotationToPoses iterates over linearized rotations and convert them to poses with Zero translation  */
     void convertLinearizedRotationToPoses(){
       gtsam::Values rotValue = gtsam::InitializePose3::normalizeRelaxedRotations(linearized_rotation_);
       initial_ = evaluation_utils::pose3WithZeroTranslation(rotValue);
@@ -387,9 +390,9 @@ class DistributedMapper{
     gtsam::Values getConvertedEstimate(const gtsam::Values& initial){
       gtsam::Values converted_estimate;
       for(gtsam::Values::ConstKeyValuePair key_value: initial) {
-        gtsam::Symbol key = key_value.key;
+        gtsam::LabeledSymbol key = key_value.key;
         if(use_chr_less_full_graph_){
-          int index = gtsam::symbolIndex(key);
+          int index = key.index();
           converted_estimate.insert(index, initial.at<gtsam::Pose3>(key));
         }
         else{
@@ -467,9 +470,9 @@ class DistributedMapper{
     std::pair<double, double> logCentralizedError(const gtsam::Values& centralized){
       centralized_values_.clear();
       for(const gtsam::Values::KeyValuePair& key_value: initial_) {
-        gtsam::Symbol key = key_value.key;
-        int index = gtsam::symbolIndex(key);
-        gtsam::Symbol new_key(robotName_, index);
+        gtsam::LabeledSymbol key = key_value.key;
+        int index = key.index();
+        gtsam::LabeledSymbol new_key(GRAPH_LABEL, robotName_, index);
         gtsam::Pose3 estimate;
         if(centralized.exists(index)){
           estimate = centralized.at<gtsam::Pose3>(index);
@@ -570,7 +573,7 @@ class DistributedMapper{
     gtsam::NonlinearFactorGraph inner_edges_; // edges involving keys from a single robot (exclude loopclosure edges)
     std::vector<size_t>  loopclosure_edge_ids_; // for each robot stores the position of the factors corresponding to loopclosure edges
     gtsam::Values neighbors_; // contains keys of all the neighboring robots
-    std::vector<std::pair<gtsam::Symbol, gtsam::Symbol>> loopclosures_symbols_; // contains keys of all the loopclosures
+    std::vector<std::pair<gtsam::LabeledSymbol, gtsam::LabeledSymbol>> loopclosures_symbols_; // contains keys of all the loopclosures
     std::set<char> neighbor_chars_; // contains neighboring robot symbols
     double latest_change_; // Latest change in estimate, stopping condition
     bool use_between_noise_; // To use the between factor noise instead of isotropic unit noise during pose estimation

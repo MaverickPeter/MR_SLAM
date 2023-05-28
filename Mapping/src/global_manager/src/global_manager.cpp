@@ -1253,7 +1253,7 @@ vector<int> GlobalManager::constructOptimizer(bool savingMode)
 
     // Check for graph connectivity
     std::set<char> neighboringRobots = distMapper->getNeighboringChars();
-    if(neighboringRobots.size() == 0 && !savingMode){
+    if(neighboringRobots.size() == 0 && !savingMode && nrRobots != 1){
       // disconnectedGraph = true;
       disconnectedRobotIDVec.push_back(iter);
       cout << "no neighbor robot found, robot id: " << iter << endl;
@@ -1302,38 +1302,6 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
                                                               pcm_thresh_, use_covariance, use_heuristics);
         max_clique_size = max_clique_info.first;
       }
-      
-      // int max_clique_size = 0;
-      // double pcm_threshold = 0.5;
-      // double pose_estimate_change_threshold = 1e-2;
-      // bool use_PCM = false;
-      // bool use_flagged_init = true;
-      // bool use_covariance = false;
-      // bool use_heuristics = true;
-      // vector <Values> estimates = distributedOptimizer(distMappers, maxIter, max_clique_size, updateType, gamma, rotationEstimateChangeThreshold,
-      //                                                   poseEstimateChangeThreshold, use_flagged_init, useLandmarks, debug, true,
-      //                                                   pcm_threshold, use_covariance, use_PCM, use_heuristics,
-      //                                                   DistGraphAndValuesVec, rotationTrace, poseTrace, subgraphRotationTrace,
-      //                                                   subgraphPoseTrace, rotationVectorValuesTrace);
-
-      // // vector< Values > estimates = distributedOptimizer(distMappers, maxIter, updateType, gamma, rotationEstimateChangeThreshold, 
-      // //                                                   poseEstimateChangeThreshold, useFlaggedInit, useLandmarks, debug, rotationTrace, 
-      // //                                                   poseTrace, subgraphRotationTrace, subgraphPoseTrace, rotationVectorValuesTrace);
-      // if(debug)
-      //   cout << "Done" << endl;
-
-      // // Aggregate estimates from all the robots
-      // Values distributed;
-      // for(size_t i = 0; i < estimates.size(); i++){
-      //   for(const Values::ConstKeyValuePair& key_value: estimates[i]){
-      //     Key key = key_value.key;
-      //     if(!distributed.exists(key))
-      //       distributed.insert(key, estimates[i].at<Pose3>(key));
-      //   }
-      // }
-
-      // if(debug)
-      //   cout << "Done Aggregating" << endl;
       
       ////////////////////////////////////////////////////////////////////////////////
       // Read full graph and add prior
@@ -2475,7 +2443,7 @@ pcl::Registration<pcl::PointXYZI, pcl::PointXYZI>::Ptr GlobalManager::select_reg
 /*
  * Utility function: read all robots' init poses
  */
-void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f>& poses, int start_robot_id_)
+void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>>& poses, int start_robot_id_)
 {
   ROS_INFO("Read init poses");
 

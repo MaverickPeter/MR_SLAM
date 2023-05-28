@@ -39,6 +39,7 @@
     </li>
     <li><a href="#quick-demo">Quick Demo</a></li>
     <li><a href="#full-usage">Full Usage</a></li>
+    <li><a href="#docker">Docker</a></li>
     <li><a href="#roadmap">Roadmap</a></li>
     <li><a href="#citation">Citation</a></li>
     <li><a href="#contributing">Contributing</a></li>
@@ -61,8 +62,9 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-## **NEWS (Jan, 2023): Support PCM**
-Support PCM (Pairwise Consistent Measurement) for robustness.
+## **NEWS (April, 2023): Support single robot application**
+
+(Jan, 2023) Support PCM (Pairwise Consistent Measurement) for robustness.
 
 A chinese version of [Tutorial](https://maverickpeter.github.io/2022/11/03/MR_SLAM-tutorial/) is posted on my blog. 
 
@@ -90,6 +92,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 * [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) (pluggable loop detector)
   ```sh
   Follow https://github.com/MaverickPeter/DiSCO-pytorch
+  You can also use c++ version in LoopDetection/src/disco_ros/tools/multi-layer-polar-cpu/
   ```
 * [RING](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/src/RING_ros) (pluggable loop detector)
   ```sh
@@ -102,9 +105,8 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 * [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
   ```sh
   # Fast GICP is already include in the repo. You can use 
-  git submodule init --recursive
   git submodule sync
-  git submodule update
+  git submodule update --init --recursive
 
   # or you can clone the repo and put them in the same place
   Follow https://github.com/SMRT-AIST/fast_gicp
@@ -117,6 +119,8 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   ```sh
   Follow https://github.com/anybotics/kindr
   ```
+* (optional - for docker use) [nvidia-docker](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker)
+
 
 ### **Installation**
 
@@ -126,21 +130,26 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    ```
 2. Make Mapping 
    ```sh
-   cd Mapping && catkin_make
+   cd Mapping && catkin_make -DBUILD_PYTHON_BINDINGS=ON
    ```
 3. Make Localization 
    ```sh
    cd Localization && catkin_make
    ```
-4. Make LoopDetection 
+4. Make Costmap 
    ```sh
-   cd LoopDetection && catkin_make
+   cd Costmap && catkin_make
+   ```
+5. Make LoopDetection 
+   ```sh
+   cd LoopDetection && catkin_make -DBUILD_PYTHON_BINDINGS=ON
 
    # If you encounter the PyInit__tf2 issue, use catkin_make with your python3 environment
    catkin_make --cmake-args \
    -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/home/client/miniconda3/envs/py3/bin/python3.8 \
    -DPYTHON_INCLUDE_DIR=/home/client/miniconda3/envs/py3/include/python3.8 \
-   -DPYTHON_LIBRARY=/home/client/miniconda3/envs/py3/lib/libpython3.8.so
+   -DPYTHON_LIBRARY=/home/client/miniconda3/envs/py3/lib/libpython3.8.so \
+   -DBUILD_PYTHON_BINDINGS=ON
    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
@@ -156,7 +165,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    ```sh
    rosbag play 3_dog.bag --clock --pause
    ```
-4. Run DiSCO / RING
+4. Run DiSCO / RING / Scan Context (If you encountered the error 'ImportError: dynamic module does not define module export function' you can refer to https://github.com/MaverickPeter/MR_SLAM/issues/4)
    ```sh
    # !!!!! You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
@@ -165,6 +174,10 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    # DiSCO
    rosrun disco_ros main.py
    
+   # Scan Context
+   cd src/RING_ros
+   python main_SC.py
+
    # RING: If you encounter the PyInit__tf2 issue, use catkin_make with your python3 environment. Check installation section. 
    cd src/RING_ros
    python main.py
@@ -187,9 +200,20 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 
 <!-- FULLUSAGE -->
 ## **Full Usage**
-0. Run roscore
+1. Get rosbag from [Google Drive](https://drive.google.com/drive/folders/1YTdVwVDLlgObInfSGmzvZctelvJ7O8E4?usp=sharing) and decompress the bags using 
+    ```sh
+    rosbag decompress xxx.bag
+   ```
    
-1. Run fast-lio (in 3 terminals)
+2. Run roscore
+
+3. Run bags (in 3 terminals)
+   ```sh
+   rosbag play loop_22.bag --clock --pause
+   rosbag play loop_30.bag 
+   rosbag play loop_31.bag 
+   ```
+4. Run fast-lio (in 3 terminals)
    ```sh
    # Set parameters in Localization/src/FAST_LIO/launch/ and Localization/src/FAST_LIO/config/ !!You need to set the scan_publish_en to true to send submaps
 
@@ -198,7 +222,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    roslaunch fast_lio robot_2.launch
    roslaunch fast_lio robot_3.launch
    ```
-2. Run elevation_mapping (in 3 terminals)
+5. Run elevation_mapping (in 3 terminals)
    ```sh
    # Set parameters in Mapping/src/elevation_mapping_periodical/elevation_mapping_demos/launch/ and Mapping/src/elevation_mapping_periodical/elevation_mapping_demos/config/
 
@@ -207,7 +231,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    roslaunch elevation_mapping_demos robot_2.launch
    roslaunch elevation_mapping_demos robot_3.launch   
    ```
-3. Run preprocess tools (in 3 terminals)
+6. Run preprocess tools (in 3 terminals)
    ```sh
    # If robots don't have cameras, you have to create fake images for elevation_mapping
 
@@ -224,7 +248,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    roslaunch filter_robot_3.launch   
 
    ```
-4. Run loop detection module
+7. Run loop detection module
    ```sh
    # You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
@@ -237,14 +261,21 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    cd src/RING_ros
    python main.py
    ```
-5. Run global_manager 
+8. Run global_manager 
    ```sh
    # Set parameters in Mapping/src/global_manager/launch/
 
    cd Mapping && source devel/setup.bash
    roslaunch global_manager global_manager.launch
    ```
-6. Visualization
+9.  Run costmap converter 
+   ```sh
+   # Set parameters in Costmap/src/costmap/params/
+
+   cd Costmap && source devel/setup.bash
+   roslaunch move_base move_base_server.launch
+   ```
+11. Visualization
    ```sh
    rviz -d Visualization/vis.rviz
    ```
@@ -252,6 +283,19 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
+<!-- DOCKER -->
+## **Docker**
+
+- Build docker from Dockerfile.
+  1. sudo bash build.sh
+  2. sudo bash run.sh (Set your own directory in run.sh to allow container to access part of your filesystem)
+  3. sudo bash login.sh
+  4. In docker, the codes are deployed in /home directory. You can follow the usage above to start nodes.
+
+- or you can just pull our docker from dockerhub.
+  ```sh
+  docker pull maverickp/mrslam:noetic
+  ```
 
 <!-- ROADMAP -->
 ## **Roadmap**
@@ -275,6 +319,17 @@ If you find this repo useful to your project, please consider to cite it with fo
           author={Xu, Xuecheng and Lu, Sha and Wu, Jun and Lu, Haojian and Zhu, Qiuguo and Liao, Yiyi and Xiong, Rong and Wang, Yue},
           journal={arXiv preprint arXiv:2210.05984},
           year={2022}
+    }
+
+    @article{xu2021disco,
+          title={Disco: Differentiable scan context with orientation},
+          author={Xu, Xuecheng and Yin, Huan and Chen, Zexi and Li, Yuehua and Wang, Yue and Xiong, Rong},
+          journal={IEEE Robotics and Automation Letters},
+          volume={6},
+          number={2},
+          pages={2791--2798},
+          year={2021},
+          publisher={IEEE}
     }
 
 <!-- CONTRIBUTING -->

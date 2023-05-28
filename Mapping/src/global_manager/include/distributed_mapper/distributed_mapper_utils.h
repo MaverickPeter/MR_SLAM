@@ -46,7 +46,7 @@ std::pair<gtsam::Values, gtsam::VectorValues> logrotation_trace(const boost::sha
  * @param subgraph_rotation_trace contains the Values for a particular subgraph being optimized
  * @param rotation_vector_values_trace contains the linearized rotation estimate
  */
-void optimizeRotation(std::vector< boost::shared_ptr<DistributedMapper> >& dist_mappers,
+unsigned int optimizeRotation(std::vector< boost::shared_ptr<DistributedMapper> >& dist_mappers,
                       const size_t& max_iter,
                       const size_t& nr_robots,
                       const std::string& robot_names,
@@ -70,7 +70,7 @@ void optimizeRotation(std::vector< boost::shared_ptr<DistributedMapper> >& dist_
  * @param ordering is the prioritized ordering
  * @param pose_estimate_change_threshold provides an early stopping condition
  */
-void optimizePose(std::vector< boost::shared_ptr<DistributedMapper> >& dist_mappers,
+unsigned int optimizePose(std::vector< boost::shared_ptr<DistributedMapper> >& dist_mappers,
                   const size_t& max_iter,
                   const size_t& nr_robots,
                   const std::string& robot_names,
@@ -107,6 +107,7 @@ distributedOptimizer(std::vector< boost::shared_ptr<DistributedMapper> >& dist_m
                      const bool& use_covariance = false,
                      const bool& use_pcm = true,
                      const bool& use_heuristics = true,
+                     const std::string& data_dir = "",
                      boost::optional<std::vector<gtsam::GraphAndValues>&> graph_and_values_vec = boost::none,
                      boost::optional<std::vector<gtsam::Values>&> rotation_trace = boost::none,
                      boost::optional<std::vector<gtsam::Values>&> pose_trace  = boost::none,

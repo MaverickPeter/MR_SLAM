@@ -19,6 +19,7 @@
 
 #include <gtsam/base/Testable.h>
 #include <gtsam/base/Lie.h>
+#include <gtsam/base/VectorSpace.h>
 #include <gtsam/nonlinear/NonlinearFactor.h>
 namespace gtsam {
 
@@ -103,14 +104,14 @@ namespace gtsam {
 
     Matrix3 Rij = measured_.rotation().matrix();
     Matrix3 Rijt = Rij.transpose();
-    Vector3 tij = measured_.translation().vector();
+    auto tij = measured_.translation();
 
 
     Matrix3 Ri = pi.rotation().matrix();
-    Vector3 ti = pi.translation().vector();
+    auto ti = pi.translation();
 
     Matrix3 Rj = pj.rotation().matrix();
-    Vector3 tj = pj.translation().vector();
+    auto tj = pj.translation();
 
     Matrix3 Ri_Rij = Ri*Rij;
     Matrix3 error_R = Ri_Rij - Rj;
@@ -129,14 +130,14 @@ namespace gtsam {
       Hi->block(3,0,3,3) = Ri_Rij*S2*Rijt;
       Hi->block(6,0,3,3) = Ri_Rij*S3*Rijt;
       Hi->block(9,0,3,3) = Ri*skewSymmetric(tij);
-      Hi->block(9,3,3,3) = -eye(3); // TODO: define once outside
+      Hi->block(9,3,3,3) = -Eigen::MatrixXd::Identity(3, 3); // TODO: define once outside
 
       // fill in Jacobian wrt pj
       *Hj = Matrix::Zero(12,6);
       Hj->block(0,0,3,3) = - Rj*S1;
       Hj->block(3,0,3,3) = - Rj*S2;
       Hj->block(6,0,3,3) = - Rj*S3;
-      Hj->block(9,3,3,3) = eye(3);  // TODO: define once outside
+      Hj->block(9,3,3,3) = Eigen::MatrixXd::Identity(3, 3);  // TODO: define once outside
 
     }
 
