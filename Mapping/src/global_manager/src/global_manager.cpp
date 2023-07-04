@@ -25,7 +25,7 @@ GlobalManager::GlobalManager(ros::NodeHandle private_nh) : nrRobots(0), node_(pr
   private_nh.param("enable_elevation_mapping", enableElevationMapping_, false);
 
   private_nh.param("disco_dim", disco_dim_, 1.0);
-  private_nh.param("pcm_thresh", pcm_thresh_, 0.01);  
+  private_nh.param("pcm_thresh", pcm_thresh_, 0.01);
   private_nh.param("icp_iters", icp_iters_, 10.0);
   private_nh.param("submap_size", submap_size_, 5.0);
   private_nh.param("disco_width", disco_width_, 120.0);
@@ -207,7 +207,7 @@ void GlobalManager::savingPoseGraph()
   Values fullInitialOpt = *(fullGraphAndValuesOpt.second);
   
   // Write full graph
-  writeG2o(fullGraphOpt, fullInitialOpt, "/home/client/graph/full_graph_optimized_NCLT.g2o");
+  writeG2o(fullGraphOpt, fullInitialOpt, "/tmp/full_graph_optimized_NCLT.g2o");
   cout << "optimized fullInitial.size() = " << fullInitialOpt.size() << endl;
 }
 
@@ -686,6 +686,7 @@ void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConst
   std::vector<dislam_msgs::Loop> interloops = msg->Loops;
 
   std::lock_guard<std::mutex> lock(graph_mutex_);
+  std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
 
   // Iter all loop infos and get ready for pose graph insertion
   for(auto iter : interloops){
@@ -744,6 +745,7 @@ void GlobalManager::processLoopClosureWithInitials(const dislam_msgs::LoopsConst
   std::vector<dislam_msgs::Loop> interloops = msg->Loops;
 
   std::lock_guard<std::mutex> lock(graph_mutex_);
+  std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
 
   // Iter all loop infos and get ready for pose graph insertion
   for(auto iter : interloops){
@@ -939,7 +941,8 @@ void GlobalManager::performLoopClosure()
           gtsam::Pose3 poseTo = Pose3(Rot3::RzRyRx(0.0, 0.0, 0.0), Point3(0.0, 0.0, 0.0));
 
           std::lock_guard<std::mutex> lock(graph_mutex_);
-          
+          std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
+
           // Add inter robot factor to the graph
           {
             // first id need to be same as the robot stack id. 
@@ -1212,6 +1215,7 @@ vector<int> GlobalManager::constructOptimizer(bool savingMode)
   
   // Load subgraph and construct distMapper optimizers
   std::lock_guard<std::mutex> lock(graph_mutex_);
+  std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
 
   for(size_t iter = 0; iter < nrRobots; iter++){
 
@@ -1289,6 +1293,7 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
 
   // noiseModel::Diagonal::shared_ptr priorModel = noiseModel::Isotropic::Variance(6, 1e-12); // prior noise
   noiseModel::Isotropic::shared_ptr model = noiseModel::Isotropic::Variance(12, 1);
+  std::vector<gtsam::KeyVector> removed_factor_key_vec;
 
   cout << "DisconnectedGraph Flag: " << disconnectedGraph << endl;
   if(!disconnectedGraph){
@@ -1298,11 +1303,13 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
         bool use_flagged_init = true;
         bool use_covariance = false;
         bool use_heuristics = true;
-        auto max_clique_info = distributed_pcm::DistributedPCM::solveCentralized(distMappers, DistGraphAndValuesVec,
+        auto max_clique_info = distributed_pcm::DistributedPCM::solveCentralized(distMappers, DistGraphAndValuesVec,removed_factor_key_vec,
                                                               pcm_thresh_, use_covariance, use_heuristics);
         max_clique_size = max_clique_info.first;
+        auto reject_num = max_clique_info.second;
+        ROS_DEBUG("max clique size: %d", max_clique_size,"reject num: ", reject_num);
+
       }
-      
       ////////////////////////////////////////////////////////////////////////////////
       // Read full graph and add prior
       ////////////////////////////////////////////////////////////////////////////////
@@ -1312,7 +1319,7 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
       Values fullInitial = *(fullGraphAndValues.second);
 
       // Write centralized two stage + GN
-      string debug2 = "/home/client/graph/readFullGraph.g2o";
+      string debug2 = "/tmp/readFullGraph.g2o";
       writeG2o(fullGraph, fullInitial, debug2);
 
       // Add prior
@@ -1338,7 +1345,7 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
       // std::cout << "Centralized Two Stage Error: " << chordalGraph.error(centralized_Onestage) << std::endl;
 
       // // Write centralized full graph
-      // string centralizedTwoStageFile = "/home/client/graph/centralizedTwoStage.g2o";
+      // string centralizedTwoStageFile = "/tmp/centralizedTwoStage.g2o";
       // writeG2o(fullGraph, centralized, centralizedTwoStageFile);
 
       // ////////////////////////////////////////////////////////////////////////////////
@@ -1346,9 +1353,10 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
       // ////////////////////////////////////////////////////////////////////////////////
       Values centralized = evaluation_utils::centralizedGNEstimation(fullGraphWithPrior, model, priorNoise, useBetweenNoise);
       std::cout << "Centralized Two Stage + GN Error: " << chordalGraph.error(centralized) << std::endl;
+      updateGraphAndValueVec(centralized);
 
       // Write centralized two stage + GN
-      // string dist_optimized = "/home/client/graph/fullGraph.g2o";
+      // string dist_optimized = "/tmp/fullGraph.g2o";
       // writeG2o(fullGraph, centralized, dist_optimized);
       
       // auto errors = evaluation_utils::evaluateEstimates(nrRobots,
@@ -1417,7 +1425,7 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
       }
 
       // Write centralized two stage + GN
-      string debug = "/home/client/graph/fullGraph.g2o";
+      string debug = "/tmp/fullGraph.g2o";
       writeG2o(fullGraphWithPrior, fullInitial, debug);
       
       aLoopIsClosed = false;
@@ -1456,12 +1464,27 @@ std::pair<Values, vector<int>> GlobalManager::correctPoses()
   aLoopIsClosed = false;
 }
 
+
+void GlobalManager::updateGraphAndValueVec(const gtsam::Values& newValues){
+  std::lock_guard<std::mutex> lock(graph_mutex_);
+  for(int id=0;id<nrRobots;id++){
+    Values::shared_ptr initialPtr = graphAndValuesVec[id].second;
+    for(auto value:newValues){
+      if(Key2robotID(value.key)==id){
+        initialPtr->update(value.key,newValues.at<Pose3>(value.key));
+      }
+    }
+  }
+}
+
+
 /*
  * Read full graph from graphandvalues vec
  */
 GraphAndValues GlobalManager::readFullGraph()
 {  
   std::lock_guard<std::mutex> lock(graph_mutex_);
+  std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
 
   // Combined graph and Values
   NonlinearFactorGraph::shared_ptr combinedGraph(new NonlinearFactorGraph);
@@ -2448,7 +2471,7 @@ void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eige
   ROS_INFO("Read init poses");
 
   // Initialize poses vector
-  for(int i = 0; i < files.size(); i++){
+  for(int i = start_robot_id_; i < files.size(); i++){
     Eigen::Isometry3f TinitPose = Eigen::Isometry3f::Identity();
     poses.push_back(TinitPose);
   }
@@ -2471,10 +2494,15 @@ void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eige
     
     fsSettings["T.initPose"] >> initPose;
     TinitPose = toIsometry3f(initPose);
-
-    poses[std::stoi(robotID) - start_robot_id_] = TinitPose;
-    cout << "Init pose of robot " << std::stoi(robotID) << endl;
-    cout << TinitPose.matrix() << endl;
+    
+    int newRobotID = std::stoi(robotID) - start_robot_id_;    
+    if(newRobotID < poses.size()){
+      poses[newRobotID] = TinitPose;
+      cout << "Init pose of robot " << std::stoi(robotID) << endl;
+      cout << TinitPose.matrix() << endl;
+    }else{
+      continue;
+    }
   }
 }
 

@@ -34,6 +34,19 @@ namespace distributed_pcm {
                 const bool& use_heuristics);
 
         /**
+         * \brief Function that solves the pairwise consistency maximization according to the current constraints with perfect information
+         *
+         * @param dist_mappers is the different distributed mappers in the system (one by robot)
+         * @param graph_and_values is the collection of factors of all graph used for evaluation
+         * @returns size of the maximum clique of pairwise consistent measurements and number of outliers rejected
+         */
+        static std::pair<int, int> solveCentralized(std::vector< boost::shared_ptr<distributed_mapper::DistributedMapper> >& dist_mappers,
+                std::vector<gtsam::GraphAndValues>& graph_and_values_vector,
+                std::vector<gtsam::KeyVector>& removed_factor_key_vec,
+                const double& pcm_threshold, const bool& use_covariance, 
+                const bool& use_heuristics);
+
+        /**
          * \brief Function that solves the pairwise consistency maximization according to the current constraints with limited information
          *
          * @param dist_mappers is the different distributed mappers in the system (one by robot)
@@ -65,6 +78,16 @@ namespace distributed_pcm {
                                         std::vector<gtsam::GraphAndValues>& graph_and_values_vector,
                                         const double& pcm_threshold,
                                         const bool& use_heuristics);
+        //overload executePCMCentralized 
+        static std::pair<int, int> executePCMCentralized(const int& roboti, const int& robotj, const std::vector<graph_utils::Transforms>& transforms_by_robot,
+                                        const std::vector<graph_utils::LoopClosures>& loopclosures_by_robot,
+                                        const std::map<std::pair<char, char>,graph_utils::Transforms>& loopclosures_transforms_by_pair,
+                                        std::vector< boost::shared_ptr<distributed_mapper::DistributedMapper> >& dist_mappers,
+                                        std::vector<gtsam::GraphAndValues>& graph_and_values_vector,
+                                        std::vector<gtsam::KeyVector>& removed_factor_key_vec,
+                                        const double& pcm_threshold,
+                                        const bool& use_heuristics);
+    
 
         static std::pair<std::pair<int, int>, std::pair<std::set<std::pair<gtsam::Key, gtsam::Key>>, std::set<std::pair<gtsam::Key, gtsam::Key>>>>
                                         executePCMDecentralized(const int& other_robot_id, robot_measurements::RobotLocalMap& robot_local_map,

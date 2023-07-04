@@ -221,6 +221,7 @@ private:
 
   // pose graph optimization
   std::mutex graph_mutex_;
+  std::mutex new_graph_mutex;
   std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> mapTF;
   std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> lastTF;
   std::vector<Eigen::Isometry3f, Eigen::aligned_allocator<Eigen::Isometry3f>> currentRef;
@@ -462,6 +463,12 @@ public:
    * @details Including detection of loop closure and optimize the pose
    */
   void performLoopClosure();
+
+  /**
+   * @brief Update Graph and Values after pcm filter.
+   * @details Remove outliers detected by PCM and update the graph and values.
+   */
+  void updateGraphAndValueVec(const gtsam::Values& newValues);
 
   /**
    * @brief Process loop closure info given by loop detection node.

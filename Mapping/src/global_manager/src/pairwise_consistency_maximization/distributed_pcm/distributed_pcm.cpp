@@ -34,6 +34,37 @@ namespace distributed_pcm {
         return std::make_pair(total_max_clique_sizes, total_outliers_rejected);
     }
 
+    std::pair<int, int> DistributedPCM::solveCentralized(std::vector< boost::shared_ptr<distributed_mapper::DistributedMapper> >& dist_mappers,
+        std::vector<gtsam::GraphAndValues>& graph_and_values_vector,
+        std::vector<gtsam::KeyVector>& removed_factor_key_vec,
+        const double& pcm_threshold, const bool& use_covariance, const bool& use_heuristics) {
+
+        std::vector<graph_utils::LoopClosures> loopclosures_by_robot;
+        std::vector<graph_utils::Transforms> transforms_by_robot;
+        std::map<std::pair<char, char>,graph_utils::Transforms> loopclosures_transforms_by_pair;
+
+        fillInRequiredInformationCentralized(loopclosures_by_robot, transforms_by_robot, loopclosures_transforms_by_pair,
+                dist_mappers, use_covariance);
+
+        // Apply PCM for each pair of robots
+        int total_max_clique_sizes = 0;
+        int total_outliers_rejected = 0;
+
+        for (int roboti = 0; roboti < dist_mappers.size(); roboti++) {
+            for (int robotj = roboti+1; robotj < dist_mappers.size(); robotj++) {
+                
+                auto max_clique_info = executePCMCentralized(roboti, robotj, transforms_by_robot, loopclosures_by_robot,
+                loopclosures_transforms_by_pair, dist_mappers,
+                graph_and_values_vector, removed_factor_key_vec,pcm_threshold, use_heuristics);
+
+                total_max_clique_sizes += max_clique_info.first;
+                total_outliers_rejected += max_clique_info.second;
+            }
+        }
+
+        return std::make_pair(total_max_clique_sizes, total_outliers_rejected);
+    }
+
     std::pair<std::pair<int, int>, std::pair<std::set<std::pair<gtsam::Key, gtsam::Key>>, std::set<std::pair<gtsam::Key, gtsam::Key>>>> 
                 DistributedPCM::solveDecentralized(const int& other_robot_id,
                 boost::shared_ptr<distributed_mapper::DistributedMapper>& dist_mapper,
@@ -116,6 +147,71 @@ namespace distributed_pcm {
             transforms_by_robot.emplace_back(transforms);
         }
     }
+
+    std::pair<int, int> DistributedPCM::executePCMCentralized(const int& roboti, const int& robotj, const std::vector<graph_utils::Transforms>& transforms_by_robot,
+                const std::vector<graph_utils::LoopClosures>& loopclosures_by_robot,
+                const std::map<std::pair<char, char>,graph_utils::Transforms>& loopclosures_transforms_by_pair,
+                std::vector< boost::shared_ptr<distributed_mapper::DistributedMapper> >& dist_mappers,
+                std::vector<gtsam::GraphAndValues>& graph_and_values_vector,
+                std::vector<gtsam::KeyVector>& removed_factor_key_vec,
+                const double& pcm_threshold,
+                const bool& use_heuristics){
+        auto roboti_local_map = robot_measurements::RobotLocalMap(transforms_by_robot[roboti], loopclosures_by_robot[roboti]);
+        auto robotj_local_map = robot_measurements::RobotLocalMap(transforms_by_robot[robotj], loopclosures_by_robot[robotj]);
+        auto roboti_robotj_loopclosures_transforms = loopclosures_transforms_by_pair.at(std::make_pair(dist_mappers[roboti]->robotName(),dist_mappers[robotj]->robotName()));
+        auto interrobot_measurements = robot_measurements::InterRobotMeasurements(roboti_robotj_loopclosures_transforms, dist_mappers[roboti]->robotName(), dist_mappers[robotj]->robotName());
+
+        auto global_map = global_map::GlobalMap(roboti_local_map, robotj_local_map, interrobot_measurements, pcm_threshold, use_heuristics);
+        auto max_clique_info = global_map.pairwiseConsistencyMaximization();
+        std::vector<int> max_clique = max_clique_info.first;
+
+        // Retrieve indexes of rejected measurements
+        auto robot_pair = {roboti, robotj};
+        for (auto robot : robot_pair) {
+            auto loopclosures_ids = dist_mappers[robot]->loopclosureEdge();
+            std::vector<int> rejected_loopclosure_ids;
+            for (int i = 0; i < loopclosures_ids.size(); i++) {
+                if (isloopclosureToBeRejected(max_clique, loopclosures_ids[i], roboti_robotj_loopclosures_transforms,
+                                            interrobot_measurements.getLoopClosures(), dist_mappers[robot])) {
+                    rejected_loopclosure_ids.emplace_back(i);
+                }
+            }
+            // Remove measurements not in the max clique
+            int number_loopclosure_ids_removed = 0;
+            for (const auto& index : rejected_loopclosure_ids) {
+                auto id = loopclosures_ids[index] - number_loopclosure_ids_removed;
+                number_loopclosure_ids_removed++;
+                std::cout<<"============================================"<<std::endl;
+                gtsam::NonlinearFactor::shared_ptr factor = graph_and_values_vector.at(robot).first->at(id);
+                gtsam::KeyVector keys = factor->keys();
+                std::cout << "Removed loopclosure " << keys[0] << " and " << keys[1] << std::endl;
+                
+                removed_factor_key_vec.push_back(keys);
+                dist_mappers[robot]->eraseFactor(id);
+                graph_and_values_vector.at(robot).first->erase(graph_and_values_vector.at(robot).first->begin()+id);
+
+            }
+            // Update loopclosure ids
+            std::vector<size_t> new_loopclosure_ids;
+            int number_of_edges = dist_mappers[robot]->currentGraph().size();
+            if (robot == 0){
+                // Do not count the prior in the first robot graph
+                number_of_edges--;
+            }
+            for (int i = 0; i < number_of_edges; i++) {
+                auto keys = dist_mappers[robot]->currentGraph().at(i)->keys();
+                char robot0 = gtsam::symbolChr(keys.at(0));
+                char robot1 = gtsam::symbolChr(keys.at(1));
+                if (robot0 != robot1) {
+                    new_loopclosure_ids.push_back(i);
+                }
+            }
+            dist_mappers[robot]->setloopclosureIds(new_loopclosure_ids);
+        }
+
+        return std::make_pair(max_clique.size(), max_clique_info.second);
+    }
+
 
     std::pair<int, int> DistributedPCM::executePCMCentralized(const int& roboti, const int& robotj, const std::vector<graph_utils::Transforms>& transforms_by_robot,
                 const std::vector<graph_utils::LoopClosures>& loopclosures_by_robot,

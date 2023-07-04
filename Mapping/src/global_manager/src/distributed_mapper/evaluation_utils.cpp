@@ -5,12 +5,10 @@ using namespace gtsam;
 
 namespace distributed_mapper {
 
-#define GRAPH_LABEL 'g'
-
-static const Matrix I9 = Eigen::MatrixXd::Identity(9,9);
-static const Vector Zero9 = Vector::Zero(9);
-static const Matrix Zero33 = Matrix::Zero(3, 3);
-static const Key key_anchor = 18295873486192640;
+static const Matrix I9 = eye(9);
+static const Vector zero9 = Vector::Zero(9);
+static const Matrix zero33 = Matrix::Zero(3, 3);
+static const Key key_anchor = symbol('Z', 9999999);
 
 namespace evaluation_utils{
   //*****************************************************************************
@@ -47,7 +45,7 @@ namespace evaluation_utils{
     Values poses;
     for (const Values::ConstKeyValuePair &key_value: rotations) {
       Key key = key_value.key;
-      Pose3 pose(rotations.at<Rot3>(key), gtsam::Vector::Zero(3));
+      Pose3 pose(rotations.at<Rot3>(key), zero(3));
       poses.insert(key, pose);
     }
     return poses;
@@ -58,7 +56,7 @@ namespace evaluation_utils{
     VectorValues vector_values;
     for (const Values::ConstKeyValuePair &key_value: rotations) {
       Key key = key_value.key;
-      vector_values.insert(key, gtsam::Vector::Zero(6));
+      vector_values.insert(key, zero(6));
     }
     return vector_values;
   }
@@ -68,7 +66,7 @@ namespace evaluation_utils{
   initializeZeroRotation(const Values& sub_initials) {
     VectorValues sub_initials_vector_value;
     for (const Values::ConstKeyValuePair &key_value: sub_initials) {
-      Vector r = gtsam::Vector::Zero(9);
+      Vector r = zero(9);
       sub_initials_vector_value.insert(key_value.key, r);
     }
     return sub_initials_vector_value;
@@ -164,7 +162,7 @@ namespace evaluation_utils{
 
         if (use_between_noise) {
           // Convert noise model to chordal factor noise
-          SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->noiseModel());
+          SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->get_noiseModel());
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, chordal_noise));
         } else {
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, between_noise));
@@ -193,7 +191,7 @@ namespace evaluation_utils{
 
       // if using between noise, use the factor noise model converted to a conservative diagonal estimate
       if (use_between_noise) {
-        model = evaluation_utils::convertToDiagonalNoise(pose3_between->noiseModel());
+        model = evaluation_utils::convertToDiagonalNoise(pose3_between->get_noiseModel());
       }
 
       const FastVector<Key> &keys = factor->keys();
@@ -203,16 +201,14 @@ namespace evaluation_utils{
       M9.block(3, 3, 3, 3) = Rij;
       M9.block(6, 6, 3, 3) = Rij;
 
-      linear_graph.add(key1, -I9, key2, M9, Zero9, model);
+      linear_graph.add(key1, -I9, key2, M9, zero9, model);
     }
     // prior on the anchor orientation
-    if (!linear_graph.exists(key_anchor)) {
-      SharedDiagonal prior_model = noiseModel::Unit::Create(9);
-      linear_graph.add(key_anchor,
-                      I9,
-                      (Vector(9) << 1.0, 0.0, 0.0,/*  */ 0.0, 1.0, 0.0, /*  */ 0.0, 0.0, 1.0).finished(),
-                      prior_model);
-    }
+    SharedDiagonal prior_model = noiseModel::Unit::Create(9);
+    linear_graph.add(key_anchor,
+                    I9,
+                    (Vector(9) << 1.0, 0.0, 0.0,/*  */ 0.0, 1.0, 0.0, /*  */ 0.0, 0.0, 1.0).finished(),
+                    prior_model);
     return linear_graph;
   }
 
@@ -246,7 +242,7 @@ namespace evaluation_utils{
 
         if (use_between_noise) {
           // Convert noise model to chordal factor noise
-          SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->noiseModel());
+          SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->get_noiseModel());
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, chordal_noise));
         } else {
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, between_noise));
@@ -283,6 +279,7 @@ namespace evaluation_utils{
     // This is the "expected" solution
     // pose3_graph only contains between factors, as the priors are converted to between factors on an anchor key
     NonlinearFactorGraph pose3_graph = InitializePose3::buildPose3graph(graph);
+
     // this will also put a prior on the anchor
     GaussianFactorGraph centralized_linear_graph = InitializePose3::buildLinearOrientationGraph(pose3_graph);
     VectorValues rot_est_centralized = centralized_linear_graph.optimize();
@@ -304,7 +301,7 @@ namespace evaluation_utils{
           // Convert noise model to chordal factor noise
           Rot3 rotation = cen_rot.at<Rot3>(key1);
           SharedNoiseModel
-              chordal_noise = evaluation_utils::convertToChordalNoise(factor->noiseModel(), rotation.matrix());
+              chordal_noise = evaluation_utils::convertToChordalNoise(factor->get_noiseModel(), rotation.matrix());
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, chordal_noise));
         } else {
           cen_FG.add(BetweenChordalFactor<Pose3>(key1, key2, measured, between_noise));
@@ -321,7 +318,7 @@ namespace evaluation_utils{
     cen_FG.push_back(first_key_prior);
 
     Values chordal_GN = initial;
-    for (size_t iter = 0; iter < 5; iter++) {
+    for (size_t iter = 0; iter < 200; iter++) {
       GaussianFactorGraph chordal_GFG = *(cen_FG.linearize(chordal_GN));
       VectorValues chordal_vector_values = chordal_GFG.optimize(); // optimize
       chordal_GN = retractPose3Global(chordal_GN, chordal_vector_values);
@@ -341,8 +338,7 @@ namespace evaluation_utils{
     // Extract square root information matrix
     SharedGaussian gaussian_noise = boost::dynamic_pointer_cast<noiseModel::Gaussian>(noise);
     Matrix R = gaussian_noise->R();
-    auto tmp = trans(R) * R;
-    Matrix C = tmp.inverse(); // get covariance from square root information
+    Matrix C = gtsam::inverse(trans(R) * R); // get covariance from square root information
 
     // convert rotation to a conservative isotropic noise model
     double max_C = DBL_MIN;
@@ -362,7 +358,7 @@ namespace evaluation_utils{
     converted_chordal(8, 8) = max_C;
 
     // Translation noise is kept as it is
-    Matrix translation = C.block(3, 3, 3, 3) + 0.01 * Eigen::MatrixXd::Identity(3, 3);
+    Matrix translation = C.block(3, 3, 3, 3) + 0.01 * gtsam::eye(3, 3);
     converted_chordal.block(9, 9, 3, 3) = Rhat * translation * trans(Rhat);
 
     SharedNoiseModel chordal_noise = noiseModel::Diagonal::Gaussian::Covariance(converted_chordal);
@@ -375,8 +371,7 @@ namespace evaluation_utils{
     // Extract square root information matrix
     SharedGaussian gaussian_noise = boost::dynamic_pointer_cast<noiseModel::Gaussian>(noise);
     Matrix R = gaussian_noise->R();
-    auto tmp = trans(R) * R;
-    Matrix C = tmp.inverse(); // get covariance from square root information
+    Matrix C = gtsam::inverse(trans(R) * R); // get covariance from square root information
 
     // convert rotation to a conservative isotropic noise model
     double max_C = DBL_MIN;
@@ -384,9 +379,8 @@ namespace evaluation_utils{
       if (C(i, i) > max_C)
         max_C = C(i, i);
     }
-    Eigen::VectorXd sigmas(9);
-    sigmas << max_C, max_C, max_C, max_C, max_C, max_C, max_C, max_C;
-    SharedDiagonal chordal_noise = noiseModel::Diagonal::Sigmas(sigmas);
+
+    SharedDiagonal chordal_noise = noiseModel::Diagonal::Sigmas(repeat(9, max_C));
     return chordal_noise;
   }
 

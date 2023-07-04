@@ -35,8 +35,8 @@ DistributedMapper::createSubgraphInnerAndSepEdges(const NonlinearFactorGraph& su
     Key chr_mask = Key(UCHAR_MAX)  << index_bits; // For some reason, std::numeric_limits<unsigned char>::max() fails
     Key index_mask = ~chr_mask;
 
-    char robot0 = LabeledSymbol(key0).robot_id();
-    char robot1 = LabeledSymbol(key1).robot_id();
+    char robot0 = symbolChr(key0);
+    char robot1 = symbolChr(key1);
 
     if (robot0 == robot1 || (use_landmarks_ && robot1 == toupper(robot0))){ // keys from the same subgraph
       if(verbosity_ >= DEBUG) cout << "Factor connecting (intra): " << robot0 << " " << symbolIndex(key0) << " " <<  robot1 << " " << symbolIndex(key1) << endl;
@@ -138,8 +138,8 @@ DistributedMapper::estimateRotation(){
     KeyVector keys = pose3_between->keys();
     Symbol key0 = keys.at(0);
     Symbol key1 = keys.at(1);
-    char robot0 = LabeledSymbol(key0).robot_id();
-    char robot1 = LabeledSymbol(key1).robot_id();
+    char robot0 = symbolChr(key0);
+    char robot1 = symbolChr(key1);
 
     // Landmarks use Upper case robot symbol
     if(use_landmarks_){
@@ -150,7 +150,7 @@ DistributedMapper::estimateRotation(){
     // if using between noise, use the factor noise model converted to a conservative diagonal estimate
     SharedDiagonal model = rotation_noise_model_;
     if(use_between_noise_){
-        model = evaluation_utils::convertToDiagonalNoise(pose3_between->noiseModel());
+        model = evaluation_utils::convertToDiagonalNoise(pose3_between->get_noiseModel());
       }
 
     if(robot0 == robotName_){ // robot i owns the first key
@@ -167,8 +167,8 @@ DistributedMapper::estimateRotation(){
       }
     }
     else{
-      cout << "0: robot0 != robotNames[i] and robot1 != robotNames[i]: " <<
-              robot0 << " " << robot1 << " " << robotName_ << endl;
+      cout << "robot0 != robotNames[i] and robot1 != robotNames[i]: " <<
+              robot0 << " " << robot1 << " " << endl;
       exit(1);
     }
   }
@@ -201,7 +201,7 @@ DistributedMapper::chordalFactorGraph(){
           Pose3 measured = factor->measured();
           if(use_between_noise_){
               // Convert noise model to chordal factor noise
-              SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->noiseModel());
+              SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(factor->get_noiseModel());
               //chordal_noise->print("Chordal Noise: \n");
               chordal_graph_.add(BetweenChordalFactor<Pose3>(key1, key2, measured, chordal_noise));
             }
@@ -238,8 +238,8 @@ DistributedMapper::estimatePoses(){
     KeyVector keys = pose3_between->keys();
     Symbol key0 = keys.at(0);
     Symbol key1 = keys.at(1);
-    char robot0 = LabeledSymbol(key0).robot_id();
-    char robot1 = LabeledSymbol(key1).robot_id();
+    char robot0 = symbolChr(key0);
+    char robot1 = symbolChr(key1);
     Pose3 measured = pose3_between->measured();
 
     BetweenChordalFactor<Pose3> between_chordal_factor(key0, key1, measured, pose_noise_model_);
@@ -262,7 +262,7 @@ DistributedMapper::estimatePoses(){
             Vector b = -(M1 * neighbors_linearized_poses_.at(key1) + error);
             if(use_between_noise_){
                 Rot3 rotation = initial_.at<Pose3>(key0).rotation();
-                SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(pose3_between->noiseModel(), rotation.matrix());
+                SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(pose3_between->get_noiseModel(), rotation.matrix());
                 chordal_noise->WhitenSystem(A, b);
               }
             dist_GFG.add(key0, A, b, pose_noise_model_);
@@ -276,14 +276,14 @@ DistributedMapper::estimatePoses(){
             Vector b = -(M0 * neighbors_linearized_poses_.at(key0) + error);
             if(use_between_noise_){
                 Rot3 rotation = neighbors_.at<Pose3>(key0).rotation();
-                SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(pose3_between->noiseModel(), rotation.matrix());
+                SharedNoiseModel chordal_noise = evaluation_utils::convertToChordalNoise(pose3_between->get_noiseModel(), rotation.matrix());
                 chordal_noise->WhitenSystem(A, b);
               }
             dist_GFG.add(key1, A, b, pose_noise_model_);
         }
       }
     else{
-        cout << "1: robot0 != robotNames[i] and robot1 != robotNames[i]: " <<
+        cout << "robot0 != robotNames[i] and robot1 != robotNames[i]: " <<
                 robot0 << " " << robot1 << " " << endl;
       exit(1);
     }

@@ -61,7 +61,7 @@ link_directories(${GTSAM_LIBRARY_DIRS})
 #message("YAML_CPP Include dir: ${YAML_CPP_INCLUDE_DIR}")
 ###########################################################################
 # Find Boost
-find_package(Boost COMPONENTS serialization filesystem system program_options thread REQUIRED)
+find_package(Boost COMPONENTS serialization filesystem timer system program_options thread REQUIRED)
 include_directories(${Boost_INCLUDE_DIRS})
 link_libraries(${Boost_LIBRARIES})
 #message("Boost Libraries: ${Boost_LIBRARIES}")

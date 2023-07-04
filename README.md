@@ -53,7 +53,7 @@
 <!-- ABOUT THE PROJECT -->
 ## **About The Project**
 
-This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
+This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992) / [ScanContext](https://ieeexplore.ieee.org/document/8593953). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
 
 **Author: Peter XU (Xuecheng XU)<br />
 Affiliation: [ZJU-Robotics Lab](https://github.com/ZJU-Robotics-Lab)<br />
@@ -83,7 +83,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   
 * [Cython](https://github.com/cython/cython) (C extensions for Python)
 
-* [GTSAM](https://github.com/borglab/gtsam) (pose optimization)
+* [GTSAM](https://github.com/borglab/gtsam) (pose optimization, tested on 4.0.0-alpha2)
 
 * [Grid Map](https://github.com/anybotics/grid_map) (grid map library for mobile robots)
   ```sh
@@ -268,17 +268,17 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    cd Mapping && source devel/setup.bash
    roslaunch global_manager global_manager.launch
    ```
-9.  Run costmap converter 
+9. Run costmap converter 
    ```sh
    # Set parameters in Costmap/src/costmap/params/
 
    cd Costmap && source devel/setup.bash
    roslaunch move_base move_base_server.launch
    ```
-11. Visualization
-   ```sh
-   rviz -d Visualization/vis.rviz
-   ```
+10. Visualization
+    ```sh
+    rviz -d Visualization/vis.rviz
+    ```
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
