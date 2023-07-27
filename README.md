@@ -62,7 +62,10 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-## **NEWS (April, 2023): Support single robot application**
+## **NEWS (July, 2023): Support RING++ in LoopDetection**
+(July, 2023) Support RING++ in LoopDetection.
+
+(April, 2023) Support single robot application.
 
 (Jan, 2023) Support PCM (Pairwise Consistent Measurement) for robustness.
 
@@ -94,7 +97,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   Follow https://github.com/MaverickPeter/DiSCO-pytorch
   You can also use c++ version in LoopDetection/src/disco_ros/tools/multi-layer-polar-cpu/
   ```
-* [RING](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/src/RING_ros) (pluggable loop detector)
+* [RING & RING++](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/src/RING_ros) (pluggable loop detector)
   ```sh
   Follow the README in LoopDetection/src/RING_ros
   ```
@@ -180,8 +183,11 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 
    # RING: If you encounter the PyInit__tf2 issue, use catkin_make with your python3 environment. Check installation section. 
    cd src/RING_ros
-   python main.py
-      
+   python main_RING.py
+  
+   # or RING++
+   python main_RINGplusplus.py
+
    # Note that if you add #!/home/client/miniconda3/envs/disco/bin/python3 in the first line of RING_ros/main.py you can also use rosrun RING_ros main.py to start the node.
    ```
 5. Run global_manager 
@@ -259,7 +265,10 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    
    # RING
    cd src/RING_ros
-   python main.py
+   python main_RING.py
+
+   # or RING++
+   python main_RINGplusplus.py
    ```
 8. Run global_manager 
    ```sh

@@ -5,6 +5,7 @@ import copy
 import torch
 import random
 import voxelocc
+import voxelfeat
 import config as cfg
 import numpy as np
 from math import sin, cos
@@ -31,35 +32,6 @@ def random_sampling(orig_points, num_points):
 
     return down_points
 
-
-# check if the location is in the test set
-def check_in_test_set(northing, easting, points):
-    in_test_set = False
-    if(points[0] < northing and northing < points[1] and points[2] < easting and easting < points[3]):
-        in_test_set = True
-    return in_test_set
-
-
-# sampling pointclouds at equidistant intervals
-def sample_at_intervals(northing, easting, prev_northing, prev_easting, sampling_gap):
-    is_submap = False
-    euclidean = np.abs(np.sqrt((prev_northing-northing)**2 + (prev_easting-easting)**2))
-    if euclidean >= sampling_gap:
-    # if(euclidean < sampling_gap + 1.0 and euclidean >= sampling_gap):
-        is_submap = True
-    return is_submap
-
-
-# find closest place timestamp with index returned
-def find_closest_timestamp(A, target):
-    # A must be sorted
-    idx = A.searchsorted(target)
-    idx = np.clip(idx, 1, len(A)-1)
-    left = A[idx-1]
-    right = A[idx]
-    idx -= target - left < right - target
-    return idx
-    
 
 # get linear translation (x & y) and yaw angle from a SE3 rotation matrix
 def se3_to_3dposes(R):
@@ -91,11 +63,20 @@ def euler2rot(roll, pitch, yaw):
     return R
 
 
+# rotate the bev image using torch
+def rotate_bev(bev, angle):
+    # convert angle to degree
+    angle = angle * 180. / np.pi
+    return fn.rotate(bev, angle)
+
+
 # get the SE3 rotation matrix from the x, y translation and yaw angle    
 def getSE3(x, y, yaw):
     R = np.eye(4)
     R[:3, :3] = euler2rot(0, 0, yaw)
-    R[:3, 3] = np.array([x, y, 0])
+    R[0, 3] = x
+    R[1, 3] = y
+    R[2, 3] = 0
 
     return R
 
@@ -106,7 +87,6 @@ def trans2hom(R, t):
     T[:3, 3] = t
 
     return T
-
 
 def load_pc_infer(pc):
     # returns Nx3 matrix
@@ -183,76 +163,11 @@ def covariation_eigenvalue(pointcloud, neighborhood_index):
 def build_neighbors_NN(pointcloud, k):
 	### using KNN NearestNeighbors cluster according k
     ############ numpy KNN
-    import time
-    start = time.time()
     nbrs = NearestNeighbors(n_neighbors=k, algorithm='kd_tree', n_jobs=-1).fit(pointcloud)
     distances, indices = nbrs.kneighbors(pointcloud)
-    end = time.time()
-    # print("neighbors time: ", end-start)
-    
-    start2 = time.time()
     covs, entropy, eigens_, vectors_ = covariation_eigenvalue(pointcloud, indices)
-    end2 = time.time()
-    # print("covariation_eigenvalue time: ", end2-start2)
 
     return indices, covs, entropy, eigens_, vectors_
-
-
-def calculate_features(pointcloud, nbrs_index, eigens_, vectors_):
-    ### calculate handcraft feature with eigens and statistics data
-
-    # features using eigens
-    eig3d = eigens_[:3]
-    eig2d = eigens_[3:5]
-
-    # 3d
-    C_ = eig3d[2] / (eig3d.sum())
-    O_ = np.power((eig3d.prod() / np.power(eig3d.sum(), 3)), 1.0 / 3)
-    # L_ = (eig3d[0] - eig3d[1]) / eig3d[0]
-    E_ = -((eig3d / eig3d.sum()) * np.log(eig3d / eig3d.sum())).sum()
-    #P_ = (eig3d[1] - eig3d[2]) / eig3d[0]
-    #S_ = eig3d[2] / eig3d[0]
-    #A_ = (eig3d[0] - eig3d[2]) / eig3d[0]
-    #X_ = eig3d.sum()
-    # D_ = 3 * nbrs_index.shape[0] / (4 * math.pi * eig3d.prod())
-    # 2d
-    # S_2 = eig2d.sum()
-    L_2 = eig2d[1] / eig2d[0]
-    # features using statistics data
-    neighborhood = pointcloud[nbrs_index]
-    nbr_dz = neighborhood[:, 2] - neighborhood[:, 2].min()
-    dZ_ = nbr_dz.max()
-    vZ_ = np.var(nbr_dz)
-    # V_ = vectors_[2][2]
-    # not ok: L_, D_, S_2, V_
-    features = np.asarray([C_, O_, E_, L_2, dZ_, vZ_])#([C_,O_,L_,E_,D_,S_2,L_2,dZ_,vZ_,V_])
-    # features = np.asarray([dZ_])
-    return features
-
-
-def get_pointfeat(pointcloud):
-
-    k = 30
-    k_indices, k_covs, k_entropy, k_eigens_, k_vectors_  = build_neighbors_NN(pointcloud, k)
-    start2 = time.time()
-
-    points_feature = []
-    for index in range(pointcloud.shape[0]):
-        ### per point
-        neighborhood = k_indices[index]
-        eigens_ = k_eigens_[index]
-        vectors_ = k_vectors_[index]
-
-        # calculate point feature
-        feature = calculate_features(pointcloud, neighborhood, eigens_, vectors_)
-        points_feature.append(feature)
-
-    end2 = time.time()
-    print('calculate_features time:', end2-start2)
-
-    points_feature = np.asarray(points_feature)
-
-    return points_feature
 
 
 # genarate RING descriptor using CUDA accelerate 
@@ -269,55 +184,70 @@ def generate_RING(pc):
 
     point_t_bev = point_t_bev[...,2]
     pc_bev = point_t_bev.reshape(cfg.num_height, cfg.num_ring, cfg.num_sector)
-    end2 = time.time()
 
     ########### normal #############
     pc_bev_tensor = torch.from_numpy(pc_bev)
-    pc_bev_max = np.max(pc_bev, axis=-1)
-    pc_bev_max = torch.from_numpy(pc_bev_max)
-
-    pc_bev_sum = np.sum(pc_bev, axis=-1)
-    pc_bev_sum = torch.from_numpy(pc_bev_sum)
-
-    pc_bev_ave = np.average(pc_bev, axis=-1)
-    pc_bev_ave = torch.from_numpy(pc_bev_ave)
 
     # genearate RING
     angles = torch.FloatTensor(np.linspace(0, 2*np.pi, cfg.num_ring).astype(np.float32))
     radon = ParallelBeam(cfg.num_sector, angles)
 
     pc_RING = radon.forward(pc_bev_tensor.to(device))
-    pc_RING_max = radon.forward(pc_bev_max.to(device))
-    pc_RING_sum = radon.forward(pc_bev_sum.to(device))
-
 
     pc_RING_normalized = fn.normalize(pc_RING, mean=pc_RING.mean(), std=pc_RING.std())
     pc_TIRING = torch.fft.fft2(pc_RING_normalized, dim=-2,norm="ortho")
-    
-    pc_TIRING_copy = pc_TIRING.clone()
-    pc_kdRing = torch.sqrt(pc_TIRING.real**2 + pc_TIRING.imag**2)
 
-    pc_kdRing = pc_kdRing.reshape(-1)
-    pc_show = torch.sqrt(pc_TIRING_copy.real**2 + pc_TIRING_copy.imag**2)
-
-    return pc_bev, pc_RING.cpu(), pc_TIRING.cpu(), pc_kdRing.cpu().numpy()
+    return pc_bev, pc_RING.cpu(), pc_TIRING.cpu()
 
 
-def load_RING(pc, RING_filename, TIRING_filename):
+# genarate RING++ descriptor using CUDA accelerate 
+def generate_RINGplusplus(pc):
     size = pc.shape[0]
     pc = pc[:,0:3]
+    
+    # ! extract local descriptors and then use RING to aggregate the descriptors
+    ###### KNN CPU ######
+    k = 30
+    k_indices, k_covs, k_entropy, k_eigens_, k_vectors_  = build_neighbors_NN(pc, k)
+
+    ###### lpd-feat GPU ######
+    k_indices = k_indices.flatten().astype(np.int32)
+    k_eigens_ = k_eigens_.flatten()
+    pc_flatten = pc.flatten()
+
+    featureExtractor = voxelfeat.GPUFeatureExtractor(pc_flatten, size, 13, 30, k_indices, k_eigens_)
+    GPUfeat = featureExtractor.get_features()
+    GPUfeat = GPUfeat.reshape(-1,13)
+    GPUfeat = GPUfeat.take([0,1,3,10,11,12], axis=1)    # [0,1,3,10,11,12] x 5,7,8,9
+    pc = np.concatenate((pc, GPUfeat), axis=1)    # num_points * 13 
+    featsize = pc.shape[1]
+
     pc = pc.transpose().flatten().astype(np.float32)
 
-    # generate bev
-    transer_bev = voxelocc.GPUTransformer(pc, size, cfg.max_length, cfg.max_height, cfg.num_ring, cfg.num_sector, cfg.num_height, 1)
+    ###### generate lpd-feat BEV ######
+    transer_bev = voxelfeat.GPUTransformer(pc, size, cfg.max_length, cfg.max_height, cfg.num_ring, cfg.num_sector, cfg.num_height, featsize)
     transer_bev.transform()
     point_t_bev = transer_bev.retreive()
-    point_t_bev = point_t_bev.reshape(-1, 3)
-    point_t_bev = point_t_bev[...,2]
-    pc_bev = point_t_bev.reshape(cfg.num_height, cfg.num_ring, cfg.num_sector)
-    RING = torch.load(RING_filename)
-    TIRING = torch.load(TIRING_filename)
-    return pc_bev, RING, TIRING
+    point_t_bev = point_t_bev.reshape(-1, featsize)
+    point_t_bev = point_t_bev[...,3:]
+    pc_bev = point_t_bev.reshape(cfg.num_height, cfg.num_ring, cfg.num_sector, featsize-3)
+    
+    # convert to tensor BEV with several feature channels
+    pc_bev_tensor = torch.from_numpy(pc_bev).to(device)
+    pc_bev_tensor = pc_bev_tensor.squeeze(0)
+    pc_bev_tensor = pc_bev_tensor.permute(2,0,1)
+
+    # genearate RING
+    angles = torch.FloatTensor(np.linspace(0, 2*np.pi, cfg.num_ring).astype(np.float32))
+    radon = ParallelBeam(cfg.num_sector, angles)
+
+    # RING of lpd-feat BEV with several feature channels
+    pc_RING = radon.forward(pc_bev_tensor)
+
+    # TIRING with row-wise FFT on RING
+    pc_TIRING, _ = forward_row_fft(pc_RING)
+    
+    return pc_bev_tensor, pc_RING.cpu(), pc_TIRING.cpu()
 
 
 def robotid_to_key(robotid):
@@ -350,20 +280,6 @@ def is_revisited(query_pose, map_poses, revisit_threshold):
     return revisited, dist, idx
 
 
-# get the ground truth yaw angle in grid
-def GT_angle_convert(gt_yaw, size):
-    gt_yaw = gt_yaw % 360
-    if gt_yaw > 180:
-        gt_yaw -= 360
-    elif gt_yaw < -180:
-        gt_yaw += 360
-    
-    gt_angle = gt_yaw
-
-    gt_angle = np.round(gt_angle * float(size) / 360.)
-    return gt_angle
-
-
 # appy 2D fourier transform to the input data
 def forward_fft(input):
     median_output = torch.fft.fft2(input, dim=(-2, -1),norm="ortho")
@@ -381,7 +297,6 @@ def forward_row_fft(input):
     median_output_r = median_output.real
     median_output_i = median_output.imag
     output = torch.sqrt(median_output_r ** 2 + median_output_i ** 2)
-    # output = fftshift2d(output)
     return output, median_output
 
 
@@ -416,6 +331,31 @@ def roll_n(X, axis, n):
     front = X[f_idx]
     back = X[b_idx]
     return torch.cat([back, front], axis)
+
+
+# compute the max correlation value and the corresponding circular shift 
+def fast_corr_RINGplusplus(a, b):
+
+    a = fn.normalize(a, mean=a.mean(), std=a.std())
+    b = fn.normalize(b, mean=b.mean(), std=b.std())
+
+    a_fft = torch.fft.fft2(a, dim=-2,norm="ortho")
+    b_fft = torch.fft.fft2(b, dim=-2,norm="ortho")
+
+    corr = torch.fft.ifft2(a_fft*b_fft.conj(), dim=-2, norm="ortho")  
+    corr = torch.sqrt(corr.real**2 + corr.imag**2)
+
+    corr = torch.sum(corr,dim=0) # add this line for multi feature channels
+    corr = torch.sum(corr,dim=-1).view(-1)
+    # use the torch fftshift function to shift the correlation to the center (much faster)
+    corr = torch.fft.fftshift(corr)
+
+    angle = cfg.num_ring//2 - torch.argmax(corr)
+    dist = 1 - torch.max(corr)/(0.15*a.shape[0]*cfg.num_ring*cfg.num_sector) # using any features
+    dist = dist.cpu().numpy()
+    angle = angle.cpu().numpy()
+
+    return dist, angle
 
 
 # compute the max correlation value and the corresponding circular shift 
@@ -482,48 +422,32 @@ def solve_translation(query, positive, rot_angle, device):
     
     return x, y, error
 
-# # solve the relative translation between query and positive
-# def solve_translation(query, positive, rot_angle, device):
-#     H, W = query.shape
-#     # caculate the translation of b relative to a
-#     angles = torch.FloatTensor(np.linspace(0, 2*np.pi, H).astype(np.float32)).to(device)
-#     angles = angles + rot_angle
-#     # # take one half of the spectrum for translation estimation
-#     # angles = angles[0:H//2]
-#     # query = query[0:H//2,:]
-#     # positive = positive[0:H//2,:]
-#     # matrices of the overdetermined linear system
-#     A = torch.stack([torch.cos(angles), torch.sin(angles)], dim=1)
-#     b = torch.FloatTensor(H).to(device)
-#     # x = torch.FloatTensor(1).to(device)
-#     # y = torch.FloatTensor(1).to(device)
-#     # calculate the condition number of A
-#     cond = torch.linalg.cond(A)
 
-#     # timess = time.time()
+# exhaustive search for the best translation
+def solve_translation_bev(a, b):
+    # normalize the bev
+    a = fn.normalize(a, mean=a.mean(), std=a.std())
+    b = fn.normalize(b, mean=b.mean(), std=b.std())
 
-#     for i in range(H):
-#         query_fft = torch.fft.fft2(query[i,:], dim=-1, norm="ortho")
-#         positive_fft = torch.fft.fft2(positive[i,:], dim=-1, norm="ortho")
-#         corr = torch.fft.ifft2(query_fft*positive_fft.conj(), dim=-1, norm="ortho")
-#         corr = torch.sqrt(corr.imag**2 + corr.real**2)
-#         corr = fftshift1d(corr)
-#         shift = torch.argmax(corr) - W//2
-#         # print('shift: ', shift)
-#         b[i] = shift
-#     # timeee = time.time()
-#     # print("correlation stack:", timeee - timess, 's')
+    # 2D cross correlation
+    a_fft = torch.fft.fft2(a, dim=(-2,-1), norm="ortho")
+    b_fft = torch.fft.fft2(b, dim=(-2,-1), norm="ortho")
+    corr = torch.fft.ifft2(a_fft*b_fft.conj(), dim=(-2,-1), norm="ortho")  
+    corr = torch.sqrt(corr.real**2 + corr.imag**2)
+    corr = torch.sum(corr,dim=0) # add this line for multi feature channels
 
-#     x, y = solve_overdetermined_linear_system(A, b, method='svd')
- 
-#     # overdetermined linear system error
-#     error = torch.norm(torch.matmul(A, torch.cat([x, y], dim=0)) - b)
-#     x = x.cpu().numpy()
-#     y = y.cpu().numpy()
-#     error = error.cpu().numpy()
-#     # print('predicted x, y, error: ', x, y, error)
-    
-#     return x, y, error
+    # fftshift2d function to shift the correlation to the center
+    corr = torch.fft.fftshift(corr)
+
+    # get the index of the max correlation
+    idx_x = (corr==torch.max(corr)).nonzero()[0][0]
+    idx_y = (corr==torch.max(corr)).nonzero()[0][1]
+
+    # get the translation value
+    x = idx_x - cfg.num_sector//2 
+    y = cfg.num_ring//2 - idx_y 
+
+    return y.cpu().numpy(), x.cpu().numpy(), -torch.max(corr).cpu().numpy()
 
 
 # solve the relative translation between query and positive
@@ -538,16 +462,6 @@ def solve_multilayer_translation(query, positive, rot_angle, device):
     # calculate the condition number of A
     cond = torch.linalg.cond(A)
     print("cond: ", cond)
-
-    # for i in range(H):
-    #     query_fft = torch.fft.fft2(query[:,i,:], dim=-1, norm="ortho")
-    #     positive_fft = torch.fft.fft2(positive[:,i,:], dim=-1, norm="ortho")
-    #     corr = torch.fft.ifft2(query_fft*positive_fft.conj(), dim=-1, norm="ortho")
-    #     corr = torch.sqrt(corr.imag**2 + corr.real**2)
-    #     corr = fftshift1d(corr)
-    #     shift = torch.argmax(corr, dim=1) - W//2
-    #     for j in range(B):
-    #         b[i*B+j] = shift[j]
 
     for i in range(H):
         query_fft = torch.fft.fft2(query[:,i,:], dim=-1, norm="ortho")

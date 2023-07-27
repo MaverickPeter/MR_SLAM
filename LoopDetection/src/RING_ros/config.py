@@ -1,22 +1,6 @@
 
-# Input Data Type
-input_type = "point"  # "point" or "image"
-
-# Sampling Gap
-sampling_gap = 10 # in meters (5 meters)
-
 # KNN params
 k_num = 30
-
-# Enable evaluation
-enable_m2dp = True
-enable_fh = True
-enable_sc = True
-enable_cc = True
-enable_pc = True
-enable_rs = False
-
-result_path = "./results/NCLT/lpd_feat_dz/"
 
 # GPU Process
 # Normal Resolution
@@ -25,18 +9,6 @@ num_sector = 120
 num_height = 1
 max_length = 1
 max_height = 1
-# Low Resolution
-num_ring_small = 40
-num_sector_small = 40
-num_height_small = 1
-max_length_small = 1
-max_height_small = 1
-# High Resolution
-num_ring_large = 200
-num_sector_large = 200
-num_height_large = 1
-max_length_large = 1
-max_height_large = 1
 
 # Place Recognition Parameters
 search_ratio = 0.1

@@ -45,13 +45,13 @@ f = open("./loopinfo.txt", "w")
 # get the transformation matrix from the pose message
 def get_homo_matrix_from_pose_msg(pose):
     trans = translation_matrix((pose.position.x,
-                                                       pose.position.y,
-                                                       pose.position.z))
+                                pose.position.y,
+                                pose.position.z))
 
     rot = quaternion_matrix((pose.orientation.x,
-                                                    pose.orientation.y,
-                                                    pose.orientation.z,
-                                                    pose.orientation.w))
+                            pose.orientation.y,
+                            pose.orientation.z,
+                            pose.orientation.w))
 
     se3 = np.dot(trans, rot)
 
@@ -143,28 +143,31 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, RING_current, TIRI
         print("No loop detected.")
 
     else:
-        dists_sorted = np.sort(RING_dists)
         idxs_sorted = np.argsort(RING_dists)
         # downsample the point cloud
         # pc_down_pts = random_sampling(pc_current, num_points=cfg.num_icp_points)
         idx_top1 = idxs_sorted[0]
-        dist_top1 = RING_dists[idx_top1]
 
-        # dist = RING_dists[idx]
-        print("Top {} RING distance: ".format(1), dist)        
+        dist = RING_dists[idx_top1]
+        print("Top {} RING distance: ".format(1), dist)  
+              
         # angle between the two matched RINGs in grids
         angle_matched = RING_angles[idx_top1] 
         angle_matched_extra = angle_matched - cfg.num_ring//2
+
         # convert the matched angle from grids to radians
         angle_matched_rad = angle_matched * 2 * np.pi / cfg.num_ring 
-        angle_matched_extra_rad = angle_matched_extra * 2 * np.pi / cfg.num_ring         
+        angle_matched_extra_rad = angle_matched_extra * 2 * np.pi / cfg.num_ring  
+
         # row shift between the two matched RINGs to compensate the rotation
         row_shift = calculate_row_shift(angle_matched)
         row_shift_extra = calculate_row_shift(angle_matched_extra)
+
         # matched timestamp, pc and RING
         idx_matched = RING_idxs[idx_top1]
         pc_matched = pc_candidates[idx_matched]
-        RING_matched = RING_candidates[idx_matched]                 
+        RING_matched = RING_candidates[idx_matched]
+
         # compensated matched RINGs
         RING_matched_shifted = torch.roll(RING_matched, row_shift, dims=1)
         RING_matched_shifted_extra = torch.roll(RING_matched, row_shift_extra, dims=1)
@@ -201,22 +204,26 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, RING_current, TIRI
         # loop_transform, distances, iterations = icp(pc_down_pts, pc_matched_down_pts, init_pose=init_pose, max_iterations=cfg.max_icp_iter, tolerance=cfg.icp_tolerance)
         # icp_fitness_score, loop_transform = o3d_icp(pc_current, pc_matched, tolerance=cfg.icp_tolerance, init_pose=init_pose)
         icp_fitness_score, loop_transform = fast_gicp(pc_current, pc_matched, max_correspondence_distance=cfg.icp_max_distance, init_pose=init_pose)
-        # icp_fitness_score = distances.mean() 
         timee = time.time()
+
         # print("ICP iterations:", iterations)
         print("ICP fitness score:", icp_fitness_score)              
         print("ICP processed time:", timee - times, 's')
 
         if icp_fitness_score < cfg.icp_fitness_score and robotid_current != robotid_candidate:
-            print("ICP fitness score is less than threshold, accept the loop.")
+            print("\033[32mICP fitness score is less than threshold, accept the loop.\033[0m")
             Loop_msgs = Loops()
+
             # publish the result of loop detection and icp
             Loop_msg = Loop()
+
             # id0 contain the current robot id and its RING index, id1 contain the matched robot id and its RING index       
             Loop_msg.id0 = robotid_to_key(robotid_current) + idx_current + 1
             Loop_msg.id1 = robotid_to_key(robotid_candidate) + idx_matched + 1
+
             # !!! convert the pointcloud transformation matrix to the frame transformation matrix
             loop_transform = np.linalg.inv(loop_transform)
+
             # convert the transform matrix to the format of position and orientation
             pose = get_pose_msg_from_homo_matrix(loop_transform)
             Loop_msg.pose = pose
@@ -228,7 +235,7 @@ def detect_loop_icp(robotid_current, idx_current, pc_current, RING_current, TIRI
             pub.publish(Loop_msgs)      
             print("Loop detected between id ", Loop_msg.id0, " and id ", Loop_msg.id1)          
         else:
-            print("ICP fitness score is larger than threshold, reject the loop.")
+            print("\033[31mICP fitness score is larger than threshold, reject the loop.\033[0m")
 
 
 def callback1(data):
@@ -249,19 +256,20 @@ def callback1(data):
     # convert the point cloud to o3d point cloud
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(pc_list)
-    
-    pc_normalized = load_pc_infer(pc_list)
+    pcd = pcd.voxel_down_sample(voxel_size=0.2)
+
+    pc_normalized = load_pc_infer(pcd.points)
     pc = np.asarray(pcd.points)
-    
+
     # get the pose of the keyframe point cloud 
     # convert position and quaternion pose to se3 matrix
     se3 = get_homo_matrix_from_pose_msg(data.pose)
 
     # generate RING and TIRING descriptors
     times = time.time()
-    pc_bev, pc_RING, pc_TIRING, _ = generate_RING(pc_normalized)
+    pc_bev, pc_RING, pc_TIRING = generate_RING(pc_normalized)
     timee = time.time()
-    print("Descriptors generated time robot1:", timee - times, 's')
+    print("Descriptors generated time:", timee - times, 's')
 
     # detect the loop and apply icp
     # candidate robot id: 1
@@ -298,8 +306,9 @@ def callback2(data):
     # convert the point cloud to o3d point cloud
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(pc_list)
+    pcd = pcd.voxel_down_sample(voxel_size=0.2)
 
-    pc_normalized = load_pc_infer(pc_list)
+    pc_normalized = load_pc_infer(pcd.points)
     pc = np.asarray(pcd.points)
 
     # get the pose of the keyframe point cloud 
@@ -308,7 +317,7 @@ def callback2(data):
 
     # generate RING and TIRING descriptors
     times = time.time()
-    pc_bev, pc_RING, pc_TIRING, _ = generate_RING(pc_normalized)
+    pc_bev, pc_RING, pc_TIRING = generate_RING(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
 
@@ -348,8 +357,9 @@ def callback3(data):
     # convert the point cloud to o3d point cloud
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(pc_list)
+    pcd = pcd.voxel_down_sample(voxel_size=0.2)
 
-    pc_normalized = load_pc_infer(pc_list)
+    pc_normalized = load_pc_infer(pcd.points)
     pc = np.asarray(pcd.points)
 
     # get the pose of the keyframe point cloud 
@@ -358,7 +368,7 @@ def callback3(data):
 
     # generate RING and TIRING descriptors
     times = time.time()
-    pc_bev, pc_RING, pc_TIRING, _ = generate_RING(pc_normalized)
+    pc_bev, pc_RING, pc_TIRING = generate_RING(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
 
