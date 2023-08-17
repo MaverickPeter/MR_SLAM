@@ -53,7 +53,7 @@
 <!-- ABOUT THE PROJECT -->
 ## **About The Project**
 
-This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992) / [ScanContext](https://ieeexplore.ieee.org/document/8593953). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
+This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992) / [RING++](https://arxiv.org/abs/2210.05984) / [ScanContext](https://ieeexplore.ieee.org/document/8593953). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
 
 **Author: Peter XU (Xuecheng XU)<br />
 Affiliation: [ZJU-Robotics Lab](https://github.com/ZJU-Robotics-Lab)<br />
@@ -62,7 +62,9 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-## **NEWS (July, 2023): Support RING++ in LoopDetection**
+## **NEWS (Aug, 2023): RING++ is accepted for T-RO!**
+(Aug, 2023): RING++ is accepted for T-RO!
+
 (July, 2023) Support RING++ in LoopDetection.
 
 (April, 2023) Support single robot application.
@@ -168,7 +170,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    ```sh
    rosbag play 3_dog.bag --clock --pause
    ```
-4. Run DiSCO / RING / Scan Context (If you encountered the error 'ImportError: dynamic module does not define module export function' you can refer to https://github.com/MaverickPeter/MR_SLAM/issues/4)
+4. Run DiSCO / RING / RING++ / Scan Context (If you encountered the error 'ImportError: dynamic module does not define module export function' you can refer to https://github.com/MaverickPeter/MR_SLAM/issues/4)
    ```sh
    # !!!!! You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
 
@@ -313,6 +315,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 - [ ] Optimize code.
 - [ ] Add more pluggable loop closure methods.
 - [ ] Support more front-end odometry.
+- [ ] Support more PGO methods.
 
 See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a full list of proposed features (and known issues).
 

@@ -2471,7 +2471,7 @@ void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eige
   ROS_INFO("Read init poses");
 
   // Initialize poses vector
-  for(int i = start_robot_id_; i < files.size(); i++){
+  for(int i = 0; i < files.size(); i++){
     Eigen::Isometry3f TinitPose = Eigen::Isometry3f::Identity();
     poses.push_back(TinitPose);
   }
@@ -2505,6 +2505,7 @@ void readConfigs(std::vector<string>& files, std::vector<Eigen::Isometry3f, Eige
     }
   }
 }
+
 
 
 /*
