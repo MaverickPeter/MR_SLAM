@@ -53,7 +53,7 @@
 <!-- ABOUT THE PROJECT -->
 ## **About The Project**
 
-This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO), pluggable loop closure methods [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [RING](https://arxiv.org/abs/2204.07992) / [RING++](https://arxiv.org/abs/2210.05984) / [ScanContext](https://ieeexplore.ieee.org/document/8593953). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
+This is a C++ library with ROS interfaces to manage multi-robot maps. It contains a pluggable front-end [FAST-LIO2](https://github.com/hku-mars/FAST_LIO) / [A-LOAM](https://github.com/HKUST-Aerial-Robotics/A-LOAM), pluggable loop closure methods [DiSCO](https://ieeexplore.ieee.org/document/9359460) / [RING](https://ieeexplore.ieee.org/abstract/document/9981308) / [RING++](https://ieeexplore.ieee.org/abstract/document/10224330) / [ScanContext](https://ieeexplore.ieee.org/document/8593953). and a global manager that handles submaps, loop candidates and optimization results. The optimizer is mainly based on [GTSAM](https://github.com/borglab/gtsam) and [dist-mapper](https://github.com/CogRob/distributed-mapper). The system provides a 3D pointcloud map and an optional 2.5D elevation map output. The output elevation map can be easily converted to a costmap for navigation.
 
 **Author: Peter XU (Xuecheng XU)<br />
 Affiliation: [ZJU-Robotics Lab](https://github.com/ZJU-Robotics-Lab)<br />
@@ -62,7 +62,9 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
 
 
-## **NEWS (Aug, 2023): RING++ is accepted for T-RO!**
+## **NEWS (Sept, 2023): Support front-end odometry - A-LOAM.**
+(Sept, 2023): Support front-end odometry - A-LOAM.
+
 (Aug, 2023): RING++ is accepted for T-RO!
 
 (July, 2023) Support RING++ in LoopDetection.
@@ -221,7 +223,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    rosbag play loop_30.bag 
    rosbag play loop_31.bag 
    ```
-4. Run fast-lio (in 3 terminals)
+4. Run Odometry Fast-LIO/A-LOAM (in 3 terminals)
    ```sh
    # Set parameters in Localization/src/FAST_LIO/launch/ and Localization/src/FAST_LIO/config/ !!You need to set the scan_publish_en to true to send submaps
 
@@ -229,6 +231,13 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    roslaunch fast_lio robot_1.launch
    roslaunch fast_lio robot_2.launch
    roslaunch fast_lio robot_3.launch
+
+   # Set parameters in Localization/src/A-LOAM/launch/ !!You need to set the scan_publish_en to true to send submaps
+
+   cd Localization && source devel/setup.bash
+   roslaunch aloam robot_1.launch
+   roslaunch aloam robot_2.launch
+   roslaunch aloam robot_3.launch
    ```
 5. Run elevation_mapping (in 3 terminals)
    ```sh
@@ -254,7 +263,6 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    roslaunch filter_robot_1.launch   
    roslaunch filter_robot_2.launch   
    roslaunch filter_robot_3.launch   
-
    ```
 7. Run loop detection module
    ```sh
@@ -265,6 +273,10 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    # DiSCO
    rosrun disco_ros main.py
    
+   # Scan Context
+   cd src/RING_ros
+   python main_SC.py
+
    # RING
    cd src/RING_ros
    python main_RING.py
@@ -314,8 +326,13 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 - [x] Add PCM.
 - [ ] Optimize code.
 - [ ] Add more pluggable loop closure methods.
+  - [x] Scan Context
+  - [ ] Learning-based methods
 - [ ] Support more front-end odometry.
+  - [x] A-LOAM
+  - [ ] PV-LIO
 - [ ] Support more PGO methods.
+  - [ ] GNC
 
 See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a full list of proposed features (and known issues).
 
@@ -326,11 +343,21 @@ See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a ful
 ## **Citation**
 If you find this repo useful to your project, please consider to cite it with following bib:
 
-    @article{xu2022ring++,
-          title={RING++: Roto-translation Invariant Gram for Global Localization on a Sparse Scan Map},
+    @article{xu2023ring++,
+          title={RING++: Roto-Translation-Invariant Gram for Global Localization on a Sparse Scan Map}, 
           author={Xu, Xuecheng and Lu, Sha and Wu, Jun and Lu, Haojian and Zhu, Qiuguo and Liao, Yiyi and Xiong, Rong and Wang, Yue},
-          journal={arXiv preprint arXiv:2210.05984},
-          year={2022}
+          journal={IEEE Transactions on Robotics}, 
+          year={2023},
+          publisher={IEEE}
+    }
+
+    @inproceedings{lu2022one,
+          title={One RING to Rule Them All: Radon Sinogram for Place Recognition, Orientation and Translation Estimation}, 
+          author={Lu, Sha and Xu, Xuecheng and Yin, Huan and Chen, Zexi and Xiong, Rong and Wang, Yue},
+          booktitle={2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, 
+          pages={2778-2785},
+          year={2022},
+          organization={IEEE}
     }
 
     @article{xu2021disco,
@@ -376,6 +403,8 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 Xuecheng Xu - xuechengxu@zju.edu.cn
 
-Project Link: [https://github.com/MaverickPeter/MR_SLAM](https://github.com/MaverickPeter/MR_SLAM)
+Project Link: [MR_SLAM](https://github.com/MaverickPeter/MR_SLAM)
+
+Related Link: [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [Scan Context](https://github.com/irapkaist/scancontext) / [Fast-LIO2](https://github.com/hku-mars/FAST_LIO) / [A-LOAM](https://github.com/HKUST-Aerial-Robotics/A-LOAM) / [GTSAM](https://github.com/borglab/gtsam)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
