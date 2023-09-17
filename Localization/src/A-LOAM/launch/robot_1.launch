@@ -1,0 +1,31 @@
+<launch>
+    
+    <param name="scan_line" type="int" value="64" />
+
+    <!-- if 1, do mapping 10 Hz, if 2, do mapping 5 Hz. Suggest to use 1, it will adjust frequence automaticlly -->
+    <param name="mapping_skip_frame" type="int" value="1" />
+
+    <!-- remove too closed points -->
+    <param name="minimum_range" type="double" value="5"/>
+
+    <param name="mapping_line_resolution" type="double" value="0.4"/>
+    <param name="mapping_plane_resolution" type="double" value="0.8"/>
+    <param name="NameSpace" type="string" value="robot_1" />
+    <param name="sensor_type" type="string" value="ouster" />
+
+    <node pkg="aloam" type="ascanRegistration" name="ascanRegistration_robot_1" output="screen" >
+        <remap from="/velodyne_points" to="/robot_1/pointcloud"/>
+    </node>
+
+    <node pkg="aloam" type="alaserOdometry" name="alaserOdometry_robot_1" output="screen" />
+
+    <node pkg="aloam" type="alaserMapping" name="alaserMapping_robot_1" output="screen" />
+
+    <node pkg="aloam" type="ALOAMSubmapPublisher" name="aloam_submap_Publisher_client1" output="screen">
+      <param name="RobotID" type="int" value="1" />
+      <param name="NameSpace" type="string" value="robot_1" /> 
+      <param name="SensorName" type="string" value="ouster" /> 
+      <param name="dis_th" type="double" value="1.5" />
+    </node>
+
+</launch>
