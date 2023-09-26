@@ -65,7 +65,7 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 ## **NEWS (Sept, 2023): Support front-end odometry - A-LOAM.**
 (Sept, 2023): Support front-end odometry - A-LOAM.
 
-(Aug, 2023): RING++ is accepted for T-RO!
+(Aug, 2023): RING++ is accepted for T-RO! For detailed evaluation, please refer to [RING/RING++](https://github.com/lus6-Jenny/RING).
 
 (July, 2023) Support RING++ in LoopDetection.
 
@@ -73,7 +73,7 @@ Maintainer: Peter XU, xuechengxu@zju.edu.cn<br />**
 
 (Jan, 2023) Support PCM (Pairwise Consistent Measurement) for robustness.
 
-A chinese version of [Tutorial](https://maverickpeter.github.io/2022/11/03/MR_SLAM-tutorial/) is posted on my blog. 
+A Chinese version of [Tutorial](https://maverickpeter.github.io/2022/11/03/MR_SLAM-tutorial/) is posted on my blog. 
 
 <!-- GETTING STARTED -->
 ## **Getting Started**
@@ -82,7 +82,7 @@ Here, we provide an example to demonstrate the system. Some parameters can be ch
 
 ### **Prerequisites**
 
-This software is built on the Robotic Operating System ([ROS](http://wiki.ros.org) tested on kinetic and melodic), which needs to be [installed](http://wiki.ros.org/ROS/Installation) first. Additionally, the MR_SLAM depends on following software:
+This software is built on the Robotic Operating System ([ROS](http://wiki.ros.org) tested on kinetic and melodic), which needs to be [installed](http://wiki.ros.org/ROS/Installation) first. Additionally, the MR_SLAM depends on the following software:
 
 * [Eigen](http://eigen.tuxfamily.org) (linear algebra library, tested on 3.2.9 & 3.3.4; elevation_mapping failed on 3.3.9)
   
@@ -103,7 +103,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   ```
 * [RING & RING++](https://github.com/MaverickPeter/MR_SLAM/tree/main/LoopDetection/src/RING_ros) (pluggable loop detector)
   ```sh
-  Follow the README in LoopDetection/src/RING_ros
+  Follow the README in LoopDetection/src/RING_ros or https://github.com/lus6-Jenny/RING
   ```
 * [livox_ros_driver](https://github.com/Livox-SDK/livox_ros_driver) (for FAST_LIO2)
   ```sh
@@ -111,7 +111,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   ```
 * [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
   ```sh
-  # Fast GICP is already include in the repo. You can use 
+  # Fast GICP is already included in the repo. You can use 
   git submodule sync
   git submodule update --init --recursive
 
@@ -341,7 +341,7 @@ See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a ful
 
 <!-- CITATION -->
 ## **Citation**
-If you find this repo useful to your project, please consider to cite it with following bib:
+If you find this repo useful to your project, please consider to cite it with the following bib:
 
     @article{xu2023ring++,
           title={RING++: Roto-Translation-Invariant Gram for Global Localization on a Sparse Scan Map}, 
@@ -405,6 +405,6 @@ Xuecheng Xu - xuechengxu@zju.edu.cn
 
 Project Link: [MR_SLAM](https://github.com/MaverickPeter/MR_SLAM)
 
-Related Link: [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [Scan Context](https://github.com/irapkaist/scancontext) / [Fast-LIO2](https://github.com/hku-mars/FAST_LIO) / [A-LOAM](https://github.com/HKUST-Aerial-Robotics/A-LOAM) / [GTSAM](https://github.com/borglab/gtsam)
+Related Link: [RING/RING++](https://github.com/lus6-Jenny/RING) / [DiSCO](https://github.com/MaverickPeter/DiSCO-pytorch) / [Scan Context](https://github.com/irapkaist/scancontext) / [Fast-LIO2](https://github.com/hku-mars/FAST_LIO) / [A-LOAM](https://github.com/HKUST-Aerial-Robotics/A-LOAM) / [GTSAM](https://github.com/borglab/gtsam)
 
 <p align="right">(<a href="#readme-top">back to top</a>)</p>
