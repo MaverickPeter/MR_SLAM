@@ -141,6 +141,12 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    ```
 3. Make Localization 
    ```sh
+   # In Noetic with Ubuntu 20.04, you need to make some modifications to the original codes in A-LOAM.
+   # 1. modify the "/camera_init in all cpp files to "camera_init".
+   # 2. modify the #include <opencv/cv.h> in scanRegistration.cpp to #include <opencv2/imgproc.hpp>.
+   # 3. modify the CV_LOAD_IMAGE_GRAYSCALE to cv::IMREAD_GRAYSCALE
+   # 4. modify the set(CMAKE_CXX_FLAGS "-std=c++11") to set(CMAKE_CXX_STANDARD 14) in Cmakelists.txt 
+
    cd Localization && catkin_make
    ```
 4. Make Costmap 
@@ -192,7 +198,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    # or RING++
    python main_RINGplusplus.py
 
-   # Note that if you add #!/home/client/miniconda3/envs/disco/bin/python3 in the first line of RING_ros/main.py you can also use rosrun RING_ros main.py to start the node.
+   # Note that if you add #!/xxx/python3 in the first line of RING_ros/main.py you can also use rosrun RING_ros main.py to start the node.
    ```
 5. Run global_manager 
    ```sh
@@ -318,6 +324,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 - or you can just pull our docker from dockerhub.
   ```sh
   docker pull maverickp/mrslam:noetic
+  # the codes are deployed in /home directory. You can follow the usage above to start nodes. The code of A-LOAM is modified to fit in Ubuntu 20.04 with ros noetic.
   ```
 
 <!-- ROADMAP -->
@@ -343,33 +350,37 @@ See the [open issues](https://github.com/MaverickPeter/MR_SLAM/issues) for a ful
 ## **Citation**
 If you find this repo useful to your project, please consider to cite it with the following bib:
 
-    @article{xu2023ring++,
-          title={RING++: Roto-Translation-Invariant Gram for Global Localization on a Sparse Scan Map}, 
-          author={Xu, Xuecheng and Lu, Sha and Wu, Jun and Lu, Haojian and Zhu, Qiuguo and Liao, Yiyi and Xiong, Rong and Wang, Yue},
-          journal={IEEE Transactions on Robotics}, 
-          year={2023},
-          publisher={IEEE}
-    }
-
-    @inproceedings{lu2022one,
-          title={One RING to Rule Them All: Radon Sinogram for Place Recognition, Orientation and Translation Estimation}, 
-          author={Lu, Sha and Xu, Xuecheng and Yin, Huan and Chen, Zexi and Xiong, Rong and Wang, Yue},
-          booktitle={2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, 
-          pages={2778-2785},
-          year={2022},
-          organization={IEEE}
-    }
-
-    @article{xu2021disco,
-          title={Disco: Differentiable scan context with orientation},
-          author={Xu, Xuecheng and Yin, Huan and Chen, Zexi and Li, Yuehua and Wang, Yue and Xiong, Rong},
-          journal={IEEE Robotics and Automation Letters},
-          volume={6},
-          number={2},
-          pages={2791--2798},
-          year={2021},
-          publisher={IEEE}
-    }
+```bibtex
+@article{xu2023ring++,
+  title={RING++: Roto-Translation-Invariant Gram for Global Localization on a Sparse Scan Map}, 
+  author={Xu, Xuecheng and Lu, Sha and Wu, Jun and Lu, Haojian and Zhu, Qiuguo and Liao, Yiyi and Xiong, Rong and Wang, Yue},
+  journal={IEEE Transactions on Robotics}, 
+  year={2023},
+  publisher={IEEE}
+}
+```
+```bibtex
+@inproceedings{lu2022one,
+  title={One RING to Rule Them All: Radon Sinogram for Place Recognition, Orientation and Translation Estimation}, 
+  author={Lu, Sha and Xu, Xuecheng and Yin, Huan and Chen, Zexi and Xiong, Rong and Wang, Yue},
+  booktitle={2022 IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS)}, 
+  pages={2778-2785},
+  year={2022},
+  organization={IEEE}
+}
+```
+```bibtex
+@article{xu2021disco,
+  title={Disco: Differentiable scan context with orientation},
+  author={Xu, Xuecheng and Yin, Huan and Chen, Zexi and Li, Yuehua and Wang, Yue and Xiong, Rong},
+  journal={IEEE Robotics and Automation Letters},
+  volume={6},
+  number={2},
+  pages={2791--2798},
+  year={2021},
+  publisher={IEEE}
+}
+```
 
 <!-- CONTRIBUTING -->
 ## **Contributing**

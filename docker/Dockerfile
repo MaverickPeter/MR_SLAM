@@ -24,7 +24,7 @@ RUN echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
 # =========> INSTALL packages <=============
 RUN apt-get update \
  && apt-get -V install -y \
-      build-essential clang clang-tidy libbenchmark-dev \
+      build-essential clang clang-tidy libbenchmark-dev libgoogle-glog-dev \
       libblas-dev libboost-serialization-dev libboost-filesystem-dev \
       libboost-iostreams-dev libboost-system-dev libflann-dev libglew-dev \
       libgtest-dev libopenni-dev libopenni2-dev libpcap-dev libproj-dev \
@@ -35,7 +35,7 @@ RUN apt-get update \
       ros-noetic-grid-map-rviz-plugin ros-noetic-rviz ros-noetic-pcl-ros \
       ros-noetic-costmap-2d ros-noetic-navfn ros-noetic-base-local-planner \
       ros-noetic-clear-costmap-recovery ros-noetic-move-base-msgs \
-      ros-noetic-rotate-recovery
+      ros-noetic-rotate-recovery 
 
 # =========> INSTALL GTSAM <============= 
 RUN git clone https://github.com/borglab/gtsam.git -b 4.0.0-alpha2 && cd gtsam \
@@ -52,6 +52,11 @@ RUN wget -O fftw.tar.gz http://fftw.org/fftw-3.3.10.tar.gz && tar -xvzf fftw.tar
     && cd fftw-3.3.10 && mkdir build && cd build && cmake .. \
     && make install -j8 && cd / && rm fftw.tar.gz && rm -r fftw-3.3.10/
 
+# =========> INSTALL ceres <=============
+RUN wget -O ceres.tar.gz https://github.com/ceres-solver/ceres-solver/archive/refs/tags/1.14.0.tar.gz && tar -xvzf ceres.tar.gz \
+    && cd ceres-solver-1.14.0 && mkdir build && cd build && cmake .. \
+    && make install -j8 && cd / && rm ceres.tar.gz && rm -r ceres-solver-1.14.0/
+
 RUN pip3 config set global.index-url http://pypi.douban.com/simple
 RUN pip3 config set install.trusted-host pypi.douban.com
 
@@ -67,9 +72,10 @@ COPY Costmap /home/Costmap
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/noetic/setup.bash && cd /home/Localization && catkin_make \
       && source /opt/ros/noetic/setup.bash && cd /home/Localization && catkin_make \
-      && cd /home/Mapping && catkin_make -DBUILD_PYTHON_BINDINGS=ON \
+      && cd /home/Mapping && catkin_make -DBUILD_PYTHON_BINDINGS=ON && cd src/fast_gicp && python3 setup.py install \
       && source /opt/ros/noetic/setup.bash && cd /home/LoopDetection && catkin_make -DBUILD_PYTHON_BINDINGS=ON \
       && cd generate_bev_cython_binary && python3 setup.py install && cd .. && cd torch-radon && python3 setup.py install \
+      && cd .. && cd generate_bev_pointfeat_cython && python3 setup.py install \
       && cd /home/LoopDetection/src/disco_ros/tools/multi-layer-polar-gpu/cython && python3 setup.py install
 
 
