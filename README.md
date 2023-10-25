@@ -82,16 +82,21 @@ Here, we provide an example to demonstrate the system. Some parameters can be ch
 
 ### **Prerequisites**
 
-This software is built on the Robotic Operating System ([ROS](http://wiki.ros.org) tested on kinetic and melodic), which needs to be [installed](http://wiki.ros.org/ROS/Installation) first. Additionally, the MR_SLAM depends on the following software:
+This software is built on the Robotic Operating System ([ROS](http://wiki.ros.org) tested on kinetic, melodic and noetic), which needs to be [installed](http://wiki.ros.org/ROS/Installation) first. Additionally, the MR_SLAM depends on the following software:
 
 * [Eigen](http://eigen.tuxfamily.org) (linear algebra library, tested on 3.2.9 & 3.3.4; elevation_mapping failed on 3.3.9)
   
-* [CUDA](https://developer.nvidia.com/cuda-toolkit) (gpu process)
+* [CUDA](https://developer.nvidia.com/cuda-toolkit) (gpu process, failed to infer normally with CUDA>11.1 on 30-series GPU)
   
 * [Cython](https://github.com/cython/cython) (C extensions for Python)
-
+  ```sh
+  pip install cython
+  ```
 * [GTSAM](https://github.com/borglab/gtsam) (pose optimization, tested on 4.0.0-alpha2)
-
+  ```sh
+  git clone https://github.com/borglab/gtsam.git -b 4.0.0-alpha2
+  Follow the README in https://github.com/borglab/gtsam.git
+  ```
 * [Grid Map](https://github.com/anybotics/grid_map) (grid map library for mobile robots)
   ```sh
   sudo apt install ros-$ROS_DISTRO-grid-map*
@@ -105,13 +110,20 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   ```sh
   Follow the README in LoopDetection/src/RING_ros or https://github.com/lus6-Jenny/RING
   ```
+* [torch-radon v2](https://github.com/matteo-ronchetti/torch-radon/tree/v2) (radon transform)
+  ```sh
+  # Failed to infer normally with CUDA>11.1 on 30-series GPU
+  cd LoopDetection/torch-radon
+  python setup.py install
+  ```
 * [livox_ros_driver](https://github.com/Livox-SDK/livox_ros_driver) (for FAST_LIO2)
   ```sh
   Follow https://github.com/Livox-SDK/livox_ros_driver
   ```
 * [Fast GICP](https://github.com/SMRT-AIST/fast_gicp) (for ICP refine)
   ```sh
-  # Fast GICP is already included in the repo. You can use 
+  # Fast GICP is already included in the repo with .gitmodules. 
+  # You can use --recursive when cloning this repo or 
   git submodule sync
   git submodule update --init --recursive
 
@@ -133,7 +145,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 
 1. Clone the repo
    ```sh
-   git clone https://github.com/MaverickPeter/MR_SLAM.git
+   git clone --recursive https://github.com/MaverickPeter/MR_SLAM.git
    ```
 2. Make Mapping 
    ```sh
@@ -159,9 +171,9 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 
    # If you encounter the PyInit__tf2 issue, use catkin_make with your python3 environment
    catkin_make --cmake-args \
-   -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/home/client/miniconda3/envs/py3/bin/python3.8 \
-   -DPYTHON_INCLUDE_DIR=/home/client/miniconda3/envs/py3/include/python3.8 \
-   -DPYTHON_LIBRARY=/home/client/miniconda3/envs/py3/lib/libpython3.8.so \
+   -DCMAKE_BUILD_TYPE=Release -DPYTHON_EXECUTABLE=/home/client/miniconda3/envs/py38/bin/python3.8 \
+   -DPYTHON_INCLUDE_DIR=/home/client/miniconda3/envs/py38/include/python3.8 \
+   -DPYTHON_LIBRARY=/home/client/miniconda3/envs/py38/lib/libpython3.8.so \
    -DBUILD_PYTHON_BINDINGS=ON
    ```
 
@@ -324,7 +336,8 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
 - or you can just pull our docker from dockerhub.
   ```sh
   docker pull maverickp/mrslam:noetic
-  # the codes are deployed in /home directory. You can follow the usage above to start nodes. The code of A-LOAM is modified to fit in Ubuntu 20.04 with ros noetic.
+  # The codes are deployed in /home directory. You can follow the usage above to start nodes. 
+  # The code of A-LOAM is modified to fit in Ubuntu 20.04 with ros noetic.
   ```
 
 <!-- ROADMAP -->

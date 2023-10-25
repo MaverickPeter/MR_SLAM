@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.3.1-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.1.1-cudnn8-devel-ubuntu20.04
 
 # Just in case we need it
 ENV DEBIAN_FRONTEND noninteractive
@@ -60,7 +60,7 @@ RUN wget -O ceres.tar.gz https://github.com/ceres-solver/ceres-solver/archive/re
 RUN pip3 config set global.index-url http://pypi.douban.com/simple
 RUN pip3 config set install.trusted-host pypi.douban.com
 
-RUN pip3 install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+RUN pip3 install torch==1.10.1+cu111 torchvision==0.11.2+cu111 torchaudio==0.10.1 -f https://download.pytorch.org/whl/cu111/torch_stable.html
 RUN pip3 install scipy open3d scikit-image alpha-transform
 
 COPY Mapping /home/Mapping
