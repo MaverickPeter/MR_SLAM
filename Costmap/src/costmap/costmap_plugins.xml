@@ -9,6 +9,13 @@
     </class>
   </library>
 
+
+  <library path="lib/libpolygon_layer">
+      <class type="polygon_layer::PolygonLayer" base_class_type="costmap_2d::Layer">
+      <description>Polygonal boundary layer</description>
+      </class>
+  </library>
+
   <library path="lib/libelevationMap_layer">
     <class type="costmap_2d::ElevationMapLayer"  base_class_type="costmap_2d::Layer">
       <description>Elevation map layer</description>
@@ -17,5 +24,6 @@
       <description>Inflation layer</description>
     </class>
   </library>
+
 
 </class_libraries>

@@ -2,6 +2,7 @@
 #include <pluginlib/class_list_macros.h>
 
 using costmap_2d::LETHAL_OBSTACLE;
+using namespace std;
 
 namespace costmap_2d
 {
@@ -19,6 +20,7 @@ void ElevationMapLayer::onInitialize()
 
     std::string source_topic;
     nh.param<std::string>("source_topic", source_topic, std::string("/velodyne_points"));
+    nh.param("travers_thresh", travers_thresh, 0.5);
 
     // subscriber for elevation map
     elevation_map_available_ = false;
@@ -41,6 +43,8 @@ void ElevationMapLayer::elevationMapCB(const grid_map_msgs::GridMapConstPtr& msg
 void ElevationMapLayer::updateBounds(double robot_x, double robot_y, double robot_yaw,
                                                 double* min_x, double* min_y, double* max_x, double* max_y)
 {
+    // memset(costmap_, (unsigned char)costmap_2d::NO_INFORMATION, size_x_* size_y_ * sizeof(unsigned char));
+
     if (rolling_window_)
         updateOrigin(robot_x - getSizeInMetersX() / 2, robot_y - getSizeInMetersY() / 2);
     if (!enabled_)
@@ -54,12 +58,16 @@ void ElevationMapLayer::updateBounds(double robot_x, double robot_y, double robo
     // check if the elevation map is available
     if (elevation_map_available_)
     {
-        grid_map::Matrix& data = elevation_map_["traver"];
+        grid_map::Matrix& travers = elevation_map_["traver"];
+        grid_map::Matrix& elevation = elevation_map_["elevation"];
+        grid_map::Matrix& frontier = elevation_map_["frontier"];
+
         for (grid_map::GridMapIterator iterator(elevation_map_); !iterator.isPastEnd(); ++iterator)
         {
-        
             const grid_map::Index gindex(*iterator);
-            bool is_obstacle = (data(gindex(0), gindex(1)) <0.8);
+            bool is_obstacle = (travers(gindex(0), gindex(1)) < travers_thresh) && (travers(gindex(0), gindex(1)) != -10);
+            bool is_unknown = (elevation(gindex(0), gindex(1)) == -10);
+            bool is_frontier = (frontier(gindex(0), gindex(1)) == 1);
 
             grid_map::Position pos;
             elevation_map_.getPosition(gindex, pos);
@@ -69,13 +77,17 @@ void ElevationMapLayer::updateBounds(double robot_x, double robot_y, double robo
             unsigned int mx, my;
             if (!worldToMap(px, py, mx, my))
             {
-                ROS_DEBUG("Computing map coords failed");
+                ROS_WARN("Computing map coords failed");
                 continue;
             }
 
             unsigned int index = getIndex(mx, my);
 
-            costmap_[index] = is_obstacle ? LETHAL_OBSTACLE : FREE_SPACE;
+            if(!is_unknown && is_obstacle){
+                costmap_[index] = LETHAL_OBSTACLE;
+            }else{
+                costmap_[index] = FREE_SPACE;
+            }
             touch(px, py, min_x, min_y, max_x, max_y);
         }
 

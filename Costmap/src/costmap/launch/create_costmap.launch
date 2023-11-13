@@ -1,0 +1,14 @@
+<launch>
+
+    <param name="/use_sim_time" value="true" />
+
+    <node pkg="move_base" type="move_base" respawn="false" name="move_base" output="screen">
+
+        <rosparam file="$(find costmap_converter)/params/costmap_common_params_global.yaml" command="load" ns="global_costmap" />
+        <rosparam file="$(find costmap_converter)/params/costmap_common_params_local.yaml" command="load" ns="local_costmap" />
+        <rosparam file="$(find costmap_converter)/params/local_costmap_params.yaml" command="load" />
+        <rosparam file="$(find costmap_converter)/params/global_costmap_params.yaml" command="load" />
+
+    </node>
+</launch>
+

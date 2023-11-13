@@ -1,0 +1,23 @@
+# map_type: costmap
+global_frame: robot_2/odom
+robot_base_frame: robot_2/os_sensor
+
+transform_tolerance: 5.0
+meter_scoring: true
+
+footprint: [[-0.40, -0.40], [-0.40, 0.40], [0.40, 0.40], [0.40, -0.40]]
+footprint_padding: 0.0
+
+plugins:
+ - {name: elevation_layer, type: "costmap_2d::ElevationMapLayer"}
+ - {name: inflation_layer, type: "costmap_2d::InflationLayer"}
+# - {name: polygonal_layer, type: "polygon_layer::PolygonLayer"}
+
+elevation_layer:
+  source_topic: "/robot_2/visual_map"
+  travers_thresh: 0.0
+
+inflation_layer:
+ enabled: true
+ inflation_radius: 0.1
+ cost_scaling_factor: 0.2

@@ -1,5 +1,5 @@
 /*
- * PointXYZRGBICT.hpp
+ * PointXYZRGBICTF.hpp
  *
  *  Created on: July 1, 2021
  *      Author: Peter XU
@@ -23,7 +23,7 @@
 #include <pcl/search/impl/kdtree.hpp>
 #include <boost/shared_ptr.hpp>
 
-struct PointXYZRGBICT
+struct PointXYZRGBICTF
 {
     PCL_ADD_POINT4D;
     PCL_ADD_RGB;
@@ -31,9 +31,10 @@ struct PointXYZRGBICT
     float covariance;
     float intensity;
     float travers;
+    int frontier;
 
-    PointXYZRGBICT() {}
-    PointXYZRGBICT(const PointXYZRGBICT& input)
+    PointXYZRGBICTF() {}
+    PointXYZRGBICTF(const PointXYZRGBICTF& input)
     {
         this->x = input.x;
         this->y = input.y;
@@ -42,12 +43,13 @@ struct PointXYZRGBICT
         this->intensity = input.intensity;
         this->covariance = input.covariance;
         this->travers = input.travers;
+        this->frontier = input.frontier;
     }
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 } EIGEN_ALIGN16;
 
-POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBICT,
+POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBICTF,
                                    (float, x, x)
                                    (float, y, y)
                                    (float, z, z)
@@ -55,10 +57,11 @@ POINT_CLOUD_REGISTER_POINT_STRUCT (PointXYZRGBICT,
                                    (float, intensity, intensity)
                                    (float, covariance, covariance)
                                    (float, travers, travers)
+                                   (int, frontier, frontier)
 );
 
-PCL_INSTANTIATE(VoxelGrid, PointXYZRGBICT);
-PCL_INSTANTIATE(KdTree, PointXYZRGBICT);
-PCL_INSTANTIATE(KdTreeFLANN, PointXYZRGBICT);
+PCL_INSTANTIATE(VoxelGrid, PointXYZRGBICTF);
+PCL_INSTANTIATE(KdTree, PointXYZRGBICTF);
+PCL_INSTANTIATE(KdTreeFLANN, PointXYZRGBICTF);
 
-typedef pcl::PointCloud<PointXYZRGBICT> PointCloudXYZRGBICT;
+typedef pcl::PointCloud<PointXYZRGBICTF> PointCloudXYZRGBICTF;

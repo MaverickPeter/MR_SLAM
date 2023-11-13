@@ -1,0 +1,11 @@
+local_costmap:
+  global_frame: robot_2/odom
+  robot_base_frame: robot_2/os_sensor
+  update_frequency: 15
+  publish_frequency: 15
+  width: 15.0
+  height: 15.0
+  resolution: 0.20
+  static_map: false
+  rolling_window: true
+  track_unknown_space: true

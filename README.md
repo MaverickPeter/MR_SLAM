@@ -284,7 +284,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    ```
 7. Run loop detection module
    ```sh
-   # You need to change the Python interpreter to your environment The default is mine: #!/home/client/miniconda3/envs/disco/bin/python3
+   # You may need to change the Python interpreter to your environment The default is: #!/usr/bin/python3
 
    cd LoopDetection && source devel/setup.bash
    
@@ -314,7 +314,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
    # Set parameters in Costmap/src/costmap/params/
 
    cd Costmap && source devel/setup.bash
-   roslaunch move_base move_base_server.launch
+   roslaunch costmap_converter create_costmap.launch
    ```
 10. Visualization
     ```sh
@@ -337,7 +337,7 @@ This software is built on the Robotic Operating System ([ROS](http://wiki.ros.or
   ```sh
   docker pull maverickp/mrslam:noetic
   # The codes are deployed in /home directory. You can follow the usage above to start nodes. 
-  # The code of A-LOAM is modified to fit in Ubuntu 20.04 with ros noetic.
+  # The code of A-LOAM, Costmap is modified to fit in Ubuntu 20.04 with ros noetic.
   ```
 
 <!-- ROADMAP -->

@@ -68,6 +68,7 @@ COPY LoopDetection /home/LoopDetection
 COPY Localization /home/Localization
 COPY Visualization /home/Visualization
 COPY Costmap /home/Costmap
+COPY Tools /home/Tools
 
 SHELL ["/bin/bash", "-c"]
 RUN source /opt/ros/noetic/setup.bash && cd /home/Localization && catkin_make \
@@ -76,6 +77,7 @@ RUN source /opt/ros/noetic/setup.bash && cd /home/Localization && catkin_make \
       && source /opt/ros/noetic/setup.bash && cd /home/LoopDetection && catkin_make -DBUILD_PYTHON_BINDINGS=ON \
       && cd generate_bev_cython_binary && python3 setup.py install && cd .. && cd torch-radon && python3 setup.py install \
       && cd .. && cd generate_bev_pointfeat_cython && python3 setup.py install \
-      && cd /home/LoopDetection/src/disco_ros/tools/multi-layer-polar-gpu/cython && python3 setup.py install
+      && cd /home/LoopDetection/src/disco_ros/tools/multi-layer-polar-gpu/cython && python3 setup.py install \
+      && cd /home/Costmap && catkin_make
 
 

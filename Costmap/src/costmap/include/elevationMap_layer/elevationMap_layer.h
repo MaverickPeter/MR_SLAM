@@ -1,6 +1,8 @@
 #ifndef ELEVATION_MAP_LAYER_H_
 #define ELEVATION_MAP_LAYER_H_
 
+#include <math.h>
+
 // grid map
 #include <grid_map_msgs/GridMap.h>
 #include <grid_map_ros/grid_map_ros.hpp>
@@ -32,6 +34,7 @@ private:
   grid_map::GridMap elevation_map_;
 
   bool elevation_map_available_;
+  double travers_thresh;
   
 };
 
