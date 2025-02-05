@@ -38,7 +38,7 @@
 #define WRAPPED_CV_MAT_HPP_
 
 #include <Eigen/Core>
-#include <opencv/cv.h>
+#include <opencv2/imgproc.hpp>
 
 namespace MTK {
 

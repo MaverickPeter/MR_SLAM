@@ -83,8 +83,8 @@ LIO_Pub::LIO_Pub(ros::NodeHandle& n)
 
     registeredCloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
 
-    odometrySubscriber_ = n.subscribe(NameSpace + "/aft_mapped_to_init", 1, &LIO_Pub::OdomCallback, this);
-    pointCloudSubscriber_ = n.subscribe(NameSpace + "/velodyne_cloud_registered", 1, &LIO_Pub::PCCallback, this);
+    odometrySubscriber_ = n.subscribe("/lvi_sam/lidar/mapping/odometry", 1, &LIO_Pub::OdomCallback, this);
+    pointCloudSubscriber_ = n.subscribe("/lvi_sam/lidar/mapping/cloud_registered", 1, &LIO_Pub::PCCallback, this);
     pointCloudPublisher_ = n.advertise<sensor_msgs::PointCloud2>(NameSpace + "/merged_cloud_registered", 5);
     signalPublisher_ = n.advertise<std_msgs::Bool>(NameSpace + "/new_keyframe", 5);
     subMapPublisher_ = n.advertise<dislam_msgs::SubMap>(NameSpace + "/submap", 5);

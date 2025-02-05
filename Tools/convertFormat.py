@@ -3,8 +3,8 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.transform import Rotation as R
 
-pose_dir = "/home/client/git-back/MR_ws/Mapping/src/global_manager/log/Keyframes"
-pose_file = "/home/client/git-back/MR_ws/Mapping/src/global_manager/log/full_graph.g2o"
+pose_dir = "/home/uuleslie/SLAM/MR_SLAM_ws/orin/MR_SLAM/Mapping/src/global_manager/log/Keyframes"
+pose_file = "/home/uuleslie/SLAM/MR_SLAM_ws/orin/MR_SLAM/Mapping/src/global_manager/log/full_graph.g2o"
 
 def key_to_robotid(keys):
   keys = keys >> 56
@@ -30,37 +30,49 @@ def find_closest_timestamp(A, target):
 count = 0
 loop_count = 0
 
+first_timestamp = None
+
 with open('./slam_results.txt', 'w') as wf:
-  with open(pose_file,'r') as rf:
-    for line in rf:
-      linevalue = line.split()
-      type = linevalue[0]
-
-      key = int(linevalue[1])
-      timestamp = None
-      timestamp2 = None
-      key = str(key - robotid_to_key(0))
-      if key == '0':
-        continue
-      key = key.zfill(6)
-      with open(os.path.join(pose_dir,key,"data"),'r') as rf:
+    with open(pose_file, 'r') as rf:
         for line in rf:
-          stamp = line.split()
-          if stamp[0] == 'stamp':
-            timestamp = str(stamp[1])[:10] + '.' + str(stamp[1])[10:]
+            linevalue = line.split()
+            type = linevalue[0]
 
-      if type == "VERTEX_SE3:QUAT":
+            key = int(linevalue[1])
+            timestamp = None
+            timestamp2 = None
+            key = str(key)
+            if key == '0':
+                continue
 
-        x = linevalue[2]
-        y = linevalue[3]
-        z = linevalue[4]
-        qx = linevalue[5]
-        qy = linevalue[6]
-        qz = linevalue[7]
-        qw = linevalue[8]
+            try:
+                with open(os.path.join(pose_dir, key, "data"), 'r') as rf:
+                    for line in rf:
+                        stamp = line.split()
+                        if stamp[0] == 'stamp':
+                            timestamp = str(stamp[1])[:10] + '.' + str(stamp[1])[10:]
 
+                # If it's the first timestamp, initialize first_timestamp
+                if first_timestamp is None:
+                    first_timestamp = float(timestamp)
 
-        line = [timestamp, x, y, z, qx, qy, qz, qw]
-        line = ' '.join(str(i) for i in line)
-        wf.write(line)
-        wf.write("\n")
+                # Calculate time difference (if first_timestamp is set)
+                if first_timestamp is not None:
+                    time_diff = float(timestamp) - first_timestamp
+
+                if type == "VERTEX_SE3:QUAT":
+                    x = linevalue[2]
+                    y = linevalue[3]
+                    z = linevalue[4]
+                    qx = linevalue[5]
+                    qy = linevalue[6]
+                    qz = linevalue[7]
+                    qw = linevalue[8]
+
+                    # Use the time difference (time_diff)
+                    line = [time_diff, x, y, z, qx, qy, qz, qw]  # Add time_diff to the line
+                    line = ' '.join(str(i) for i in line)
+                    wf.write(line)
+                    wf.write("\n")
+            except:
+                print("No key")

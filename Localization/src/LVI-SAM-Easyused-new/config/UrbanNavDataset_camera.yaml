@@ -1,0 +1,89 @@
+%YAML:1.0
+
+# Project
+project_name: "lvi_sam"
+
+#common parameters
+imu_topic: "/imu/data"
+image_topic: "/camera/image_color"
+point_cloud_topic: "lvi_sam/lidar/deskew/cloud_deskewed"
+
+# Lidar Params
+use_lidar: 1                     # whether use depth info from lidar or not
+lidar_skip: 3                    # skip this amount of scans
+align_camera_lidar_estimation: 1 # align camera and lidar estimation for visualization
+      
+#camera calibration 
+model_type: PINHOLE
+camera_name: camera
+image_width: 1920
+image_height: 1200
+distortion_parameters:
+   k1: -0.109203
+   k2:  0.063536
+   p1: -0.003427
+   p2: -0.000629
+projection_parameters:
+   fx: 1086.160899
+   fy: 1090.242963
+   cx: 940.067502
+   cy: 586.740077
+
+#imu parameters       The more accurate parameters you provide, the worse performance
+acc_n: 8.1330537434371481e-03          # accelerometer measurement noise standard deviation. #0.2   0.04
+gyr_n: 7.4266825125507141e-03         # gyroscope measurement noise standard deviation.     #0.05  0.004
+acc_w: 1.2123362494392119e-04        # accelerometer bias random work noise standard deviation.  #0.02
+gyr_w: 8.6572985145653080e-05       # gyroscope bias random work noise standard deviation.     #4.0e-5
+g_norm: 9.78785    # gravity magnitude
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 0   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+                        # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning. 
+#Rotation from camera frame to imu frame, imu^R_cam
+extrinsicRotation: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 9.9934608718980233e-01, -1.5715484428488590e-02, -3.2564114721728155e-02, 
+           3.2359037356803094e-02, -1.3131917124154624e-02, 9.9939003669937865e-01, 
+           -1.6133527815482926e-02, -9.9979026615676858e-01, -1.2614792047622947e-02]
+
+#Translation from camera frame to imu frame, imu^T_cam
+extrinsicTranslation: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   data: [-1.7434527332030676e-02, 1.7171139776467173e-01, -4.5251036141047592e-02]
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking
+min_dist: 20            # min distance between two features 
+freq: 20                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)
+show_track: 1           # publish tracking image as topic
+equalize: 1             # if image is too dark or light, trun on equalize to find enough features
+fisheye: 0              # if using fisheye, trun on it. A circle mask will be loaded to remove edge noisy points
+
+#optimization parameters
+max_solver_time: 0.035   # max solver itration time (ms), to guarantee real time
+max_num_iterations: 10   # max solver itrations, to guarantee real time
+keyframe_parallax: 10.0  # keyframe selection threshold (pixel)
+
+#unsynchronization parameters
+estimate_td: 0           # online estimate time offset between camera and imu
+td: 0                    # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+
+#rolling shutter parameters
+rolling_shutter: 0       # 0: global shutter camera, 1: rolling shutter camera
+rolling_shutter_tr: 0    # unit: s. rolling shutter read out time per frame (from data sheet). 
+
+#loop closure parameters
+# NOTE: if start loop_closure for UrbanNav-HK-Data20200314.bag, it will be init failure, so close it.
+loop_closure: 0                    # start loop closure
+skip_time: 0.0
+skip_dist: 0.0
+debug_image: 0                      # save raw image in loop detector for visualization prupose; you can close this function by setting 0 
+match_image_scale: 0.5
+vocabulary_file: "/config/brief_k10L6.bin"
+brief_pattern_file: "/config/brief_pattern.yml"

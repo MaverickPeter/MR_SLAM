@@ -1,0 +1,98 @@
+%YAML:1.0
+
+# Project
+project_name: "lvi_sam"
+
+#common parameters
+imu_topic: "/imu/data"
+image_topic: "/usb_cam/image_raw"
+point_cloud_topic: "lvi_sam/lidar/deskew/cloud_deskewed"
+
+# Lidar Params
+use_lidar: 1                     # whether use depth info from lidar or not
+lidar_skip: 3                    # skip this amount of scans
+align_camera_lidar_estimation: 1 # align camera and lidar estimation for visualization
+      
+#camera calibration 
+model_type: PINHOLE
+camera_name: cam
+image_width: 640
+image_height: 480
+distortion_parameters:
+   k1: -0.40789133
+   k2: 0.176096305
+   p1: 0
+   p2: 0
+projection_parameters:
+   fx: 509.446727
+   fy: 509.530526
+   cx: 300.236656
+   cy: 245.032222
+
+#imu parameters       The more accurate parameters you provide, the worse performance
+acc_n: 0.02         # accelerometer measurement noise standard deviation.
+gyr_n: 0.01         # gyroscope measurement noise standard deviation.
+acc_w: 0.002        # accelerometer bias random work noise standard deviation.
+gyr_w: 4.0e-5       # gyroscope bias random work noise standard deviation.
+g_norm: 9.805       #
+
+# Extrinsic parameter between IMU and Camera.
+estimate_extrinsic: 1   # 0  Have an accurate extrinsic parameters. We will trust the following imu^R_cam, imu^T_cam, don't change it.
+                        # 1  Have an initial guess about extrinsic parameters. We will optimize around your initial guess.
+                        # 2  Don't know anything about extrinsic parameters. You don't need to give R,T. We will try to calibrate it. Do some rotation movement at beginning. 
+#Rotation from camera frame to imu frame, imu^R_cam
+extrinsicRotation: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   # kalibr标定的结果
+   #  data: [0.00204637, -0.01046608, 0.99994314,
+   #         -0.99990799, 0.01338802, 0.00218643, 
+   #         -0.01341014, -0.9998556, -0.01043772]
+
+   # 使用上面kalibr标定的结果，然后开外参模式1，vins跑出来的结果
+   data: [1.7525377190823477e-03, -1.0859209327547081e-02, 9.9993950126211317e-01, 
+        -9.9989439256742441e-01, 1.4406934156096840e-02,  1.9089160388536253e-03,
+       -1.4426791873618172e-02, -9.9983724566601451e-01,  -1.0832813818805187e-02]
+
+#Translation from camera frame to imu frame, imu^T_cam
+extrinsicTranslation: !!opencv-matrix
+   rows: 3
+   cols: 1
+   dt: d
+   # kalibr标定的结果
+   #  data: [0.08672, -0.03944236, 0.01737262]
+
+   # 使用上面kalibr标定的结果，然后开外参模式1，vins跑出来的结果
+   data: [ 4.0828102399681390e-02, -3.5083355563645481e-02, 6.4012707621140426e-03]
+
+#feature traker paprameters
+max_cnt: 150            # max feature number in feature tracking
+min_dist: 30            # min distance between two features 
+freq: 10                # frequence (Hz) of publish tracking result. At least 10Hz for good estimation. If set 0, the frequence will be same as raw image 
+F_threshold: 1.0        # ransac threshold (pixel)
+show_track: 1           # publish tracking image as topic
+equalize: 1             # if image is too dark or light, trun on equalize to find enough features
+fisheye: 0              # if using fisheye, trun on it. A circle mask will be loaded to remove edge noisy points
+
+#optimization parameters
+max_solver_time: 0.04   # max solver itration time (ms), to guarantee real time
+max_num_iterations: 8   # max solver itrations, to guarantee real time
+keyframe_parallax: 10.0  # keyframe selection threshold (pixel)
+
+#unsynchronization parameters
+estimate_td: 1           # online estimate time offset between camera and imu
+td: -0.126                    # initial value of time offset. unit: s. readed image clock + td = real image clock (IMU clock)
+
+#rolling shutter parameters
+rolling_shutter: 0       # 0: global shutter camera, 1: rolling shutter camera
+rolling_shutter_tr: 0    # unit: s. rolling shutter read out time per frame (from data sheet). 
+
+#loop closure parameters
+loop_closure: 1                    # start loop closure
+skip_time: 0.0
+skip_dist: 0.0
+debug_image: 0                      # save raw image in loop detector for visualization prupose; you can close this function by setting 0 
+match_image_scale: 0.5
+vocabulary_file: "/config/brief_k10L6.bin"
+brief_pattern_file: "/config/brief_pattern.yml"

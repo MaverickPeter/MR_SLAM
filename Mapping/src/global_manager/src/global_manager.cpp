@@ -572,7 +572,7 @@ void GlobalManager::loopClosingThread()
       
     auto end = system_clock::now();
     auto duration = duration_cast<microseconds>(end - start);
-    ROS_DEBUG("performLoopClosure: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
+    ROS_INFO("performLoopClosure: %lfs", double(duration.count()) * microseconds::period::num / microseconds::period::den);
     
     auto update_start = system_clock::now();
 
@@ -592,7 +592,7 @@ void GlobalManager::loopClosingThread()
     
     auto update_end = system_clock::now();
     auto update_duration = duration_cast<microseconds>(update_end - update_start);
-    ROS_DEBUG("updateTransform: %lfs", double(update_duration.count()) * microseconds::period::num / microseconds::period::den);
+    ROS_INFO("updateTransform: %lfs", double(update_duration.count()) * microseconds::period::num / microseconds::period::den);
   }
   ROS_ERROR("ROS down !!!");
 }
@@ -681,24 +681,20 @@ void GlobalManager::geometryCheckThread()
 void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConstPtr& msg)
 {
   ROS_INFO("\033[1;32m received loop update \033[0m");
-
   // Get all loop infos
   std::vector<dislam_msgs::Loop> interloops = msg->Loops;
 
   std::lock_guard<std::mutex> lock(graph_mutex_);
   std::lock_guard<std::mutex> newGraphLock(new_graph_mutex);
-
   // Iter all loop infos and get ready for pose graph insertion
   for(auto iter : interloops){
     uint64_t id1 = iter.id0;
     uint64_t id2 = iter.id1;
-
     Eigen::Quaternionf factorPoseq(iter.pose.orientation.w, iter.pose.orientation.x, iter.pose.orientation.y, iter.pose.orientation.z);
     Eigen::Isometry3f factorPose(factorPoseq);
     factorPose.pretranslate(Eigen::Vector3f(iter.pose.position.x, iter.pose.position.y, iter.pose.position.z));
     Pose3 factorPose3 = Pose3(((Eigen::Isometry3d)factorPose).matrix());
    
-  
     float robustNoiseScore = 0.5; // constant is ok...
     gtsam::Vector robustNoiseVector6(6); 
     robustNoiseVector6 << robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore, robustNoiseScore;
@@ -707,7 +703,6 @@ void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConst
         gtsam::noiseModel::mEstimator::Cauchy::Create(1), // optional: replacing Cauchy by DCS or GemanMcClure, but with a good front-end loop detector, Cauchy is empirically enough.
         gtsam::noiseModel::Diagonal::Variances(robustNoiseVector6)
     ); // - checked it works. but with robust kernel, map modification may be delayed (i.e,. requires more true-positive loop factors)
-
     if(id1 < id2){
       NonlinearFactor::shared_ptr interRobotFactorID1(new BetweenFactor<Pose3>(id1, id2, factorPose3, loopNoise));
       graphAndValuesVec[Key2robotID(id1)].first->push_back(interRobotFactorID1);
@@ -728,7 +723,6 @@ void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConst
       loop_num++;
     }
   }
-
   if(loop_num >= 2)
     aLoopIsClosed = true;
 }
@@ -740,7 +734,6 @@ void GlobalManager::processLoopClosureWithFinePose(const dislam_msgs::LoopsConst
 void GlobalManager::processLoopClosureWithInitials(const dislam_msgs::LoopsConstPtr& msg)
 {
   ROS_INFO("\033[1;32m received loop update \033[0m");
-
   // Get all loop infos
   std::vector<dislam_msgs::Loop> interloops = msg->Loops;
 

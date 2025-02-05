@@ -16,31 +16,24 @@ import sensor_msgs.point_cloud2 as pc2
 from sensor_msgs.msg import PointCloud2
 from tf.transformations import translation_matrix, quaternion_matrix, translation_from_matrix, quaternion_from_matrix
 from dislam_msgs.msg import Loop, Loops, SubMap
+import sensor_msgs.msg as sensor_msgs
+import pcl
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
+historyKeyframeSearchNum = 15  # 新增的全局参数
 
 # main message information of all robots
 Pose1 = []
-Pose2 = []
-Pose3 = []
 Time1 = []
-Time2 = []
-Time3 = []
 # main descriptors of all robots
 PC1 = []
-PC2 = []
-PC3 = []
 BEV1 = []
-BEV2 = []
-BEV3 = []
 TIRING1 = []
-TIRING2 = []
-TIRING3 = []
 
-f = open("./loopinfo.txt", "w")
+f = open("./my_loopinfo.txt", "w")
 
 # get the transformation matrix from the pose message
 def get_homo_matrix_from_pose_msg(pose):
@@ -123,130 +116,132 @@ def o3d_icp(source, target, tolerance=0.2, init_pose=np.eye(4)):
 
 
 # perform loop detection and apply icp
-def detect_loop_icp(robotid_current, idx_current, pc_current, bev_current, TIRING_current, \
-                                           robotid_candidate, pc_candidates, bev_candidates, TIRING_candidates):
-    
-    TIRING_idxs = []
-    TIRING_dists = []
-    TIRING_angles = []
-
-    for idx in range(len(pc_candidates)):
-        dist, angle = fast_corr_RINGplusplus(TIRING_current, TIRING_candidates[idx])
-
-        if dist < cfg.dist_threshold:
-            TIRING_idxs.append(idx)
-            TIRING_dists.append(dist)
-            TIRING_angles.append(angle)
-
-    if len(TIRING_dists) == 0:
+def detect_loop_icp(idx_current, pc_current, bev_current, TIRING_current, PC_history, BEV_history, TIRING_history):
+    if idx_current < historyKeyframeSearchNum:
         print("No loop detected.")
-
     else:
-        idxs_sorted = np.argsort(TIRING_dists)
-        idx_top1 = idxs_sorted[0]
+        # 限制用于检测的历史帧范围
+        Limit_idx = max(0, idx_current - historyKeyframeSearchNum)
+        TIRING_candidates = TIRING_history[0:Limit_idx]
 
-        dist = TIRING_dists[idx_top1]
-        print("Top {} TIRING distance: ".format(1), dist)   
+        print("PC_history size: ", len(PC_history))
+        print("BEV_history size: ", len(BEV_history))
+        print("TIRING_history size: ", len(TIRING_history))
+        print("Limit_idx: ", Limit_idx)
+        print("idx_current: ", idx_current)
 
-        # angle between the two matched RINGs in grids
-        angle_matched = TIRING_angles[idx_top1] 
-        angle_matched_extra = angle_matched - cfg.num_ring//2
+        TIRING_idxs = []
+        TIRING_dists = []
+        TIRING_angles = []
+        print("len(TIRING_candidates): %d" % len(TIRING_candidates))
+        # 遍历候选帧，计算TIRING距离和角度
+        for idx, TIRING_candidate in enumerate(TIRING_candidates):
+            dist, angle = fast_corr_RINGplusplus(TIRING_current, TIRING_candidate)
 
-        # convert the matched angle from grids to radians
-        angle_matched_rad = angle_matched * 2 * np.pi / cfg.num_ring 
-        angle_matched_extra_rad = angle_matched_extra * 2 * np.pi / cfg.num_ring         
+            if dist < cfg.dist_threshold:
+                TIRING_idxs.append(idx)  # 保存全局索引
+                TIRING_dists.append(dist)
+                TIRING_angles.append(angle)
 
-        # matched timestamp, pc and RING
-        idx_matched = TIRING_idxs[idx_top1]
-        pc_matched = pc_candidates[idx_matched]
-        bev_matched = bev_candidates[idx_matched]
-
-        # compensated matched RINGs
-        bev_current_rotated = rotate_bev(bev_current, angle_matched_rad)
-        bev_current_rotated_extra = rotate_bev(bev_current, angle_matched_extra_rad)
-
-        # solve the translation between the two matched RINGs, x: right, y: forward, z: upward (in the RING coordinate)
-        # !! change to solve translation using original BEV representation.
-        x, y, error = solve_translation_bev(bev_current_rotated, bev_matched)
-        x_extra, y_extra, error_extra = solve_translation_bev(bev_current_rotated_extra, bev_matched)
-        if error < error_extra:
-            trans_x = x / cfg.num_sector * 140.  # in meters
-            trans_y = y / cfg.num_ring * 140.  # in meters
-            rot_yaw = angle_matched_rad  # in radians
+        # 如果没有检测到满足条件的回环
+        if len(TIRING_dists) == 0:
+            print("No loop detected.")
         else:
-            trans_x = x_extra / cfg.num_sector * 140.  # in meters
-            trans_y = y_extra / cfg.num_ring * 140.  # in meters 
-            rot_yaw = angle_matched_extra_rad  # in radians
-        
-        # !!! convert the estimation results to the lidar coordinate
-        # convert to the BEV coordinate (x: downward, y: right, z: upward)
-        trans_x_bev = -trans_y
-        trans_y_bev = trans_x
+            # 找到距离最近的回环候选帧
+            idxs_sorted = np.argsort(TIRING_dists)
+            idx_top1 = idxs_sorted[0]
 
-        # convert to the lidar coordinate (x: forward, y: left, z: upward)
-        trans_x_lidar = -trans_x_bev
-        trans_y_lidar = -trans_y_bev
+            dist = TIRING_dists[idx_top1]
+            print("Top 1 TIRING dis: ", dist)
+            # 角度计算
+            angle_matched = TIRING_angles[idx_top1]
+            angle_matched_extra = angle_matched - cfg.num_ring // 2
+            angle_matched_rad = angle_matched * 2 * np.pi / cfg.num_ring
+            angle_matched_extra_rad = angle_matched_extra * 2 * np.pi / cfg.num_ring
 
-        init_pose = np.linalg.inv(getSE3(trans_x_lidar, trans_y_lidar, rot_yaw))
-        print("Loop detected.")
-        print("Estimated translation: x: {}, y: {}, rotation: {}".format(trans_x_lidar, trans_y_lidar, rot_yaw))
+            # 获取匹配帧数据
+            idx_matched = TIRING_idxs[idx_top1]
+            pc_matched = PC_history[idx_matched]
+            bev_matched = BEV_history[idx_matched]
 
-        # apply ICP to the matched point clouds 
-        # pc_matched_down_pts = random_sampling(pc_matched, num_points=cfg.num_icp_points)
-        times = time.time()
-        # loop_transform, distances, iterations = icp(pc_down_pts, pc_matched_down_pts, init_pose=init_pose, max_iterations=cfg.max_icp_iter, tolerance=cfg.icp_tolerance)
-        # icp_fitness_score, loop_transform = o3d_icp(pc_current, pc_matched, tolerance=cfg.icp_tolerance, init_pose=init_pose)
-        icp_fitness_score, loop_transform = fast_gicp(pc_current, pc_matched, max_correspondence_distance=cfg.icp_max_distance, init_pose=init_pose)
-        timee = time.time()
+            # 旋转当前帧的BEV表示
+            bev_current_rotated = rotate_bev(bev_current, angle_matched_rad)
+            bev_current_rotated_extra = rotate_bev(bev_current, angle_matched_extra_rad)
 
-        # print("ICP iterations:", iterations)
-        print("ICP fitness score:", icp_fitness_score)              
-        print("ICP processed time:", timee - times, 's')
+            # 计算平移 (x, y) 和误差
+            x, y, error = solve_translation_bev(bev_current_rotated, bev_matched)
+            x_extra, y_extra, error_extra = solve_translation_bev(bev_current_rotated_extra, bev_matched)
 
-        if icp_fitness_score < cfg.icp_fitness_score and robotid_current != robotid_candidate:
-            print("\033[32mICP fitness score is less than threshold, accept the loop.\033[0m")
-            Loop_msgs = Loops()
+            # 选择最优的平移和旋转
+            if error < error_extra:
+                trans_x = x / cfg.num_sector * 140.0
+                trans_y = y / cfg.num_ring * 140.0
+                rot_yaw = angle_matched_rad
+            else:
+                trans_x = x_extra / cfg.num_sector * 140.0
+                trans_y = y_extra / cfg.num_ring * 140.0
+                rot_yaw = angle_matched_extra_rad
 
-            # publish the result of loop detection and icp
-            Loop_msg = Loop()
+            # convert to the BEV coordinate (x: downward, y: right, z: upward)
+            trans_x_bev = -trans_y
+            trans_y_bev = trans_x
 
-            # id0 contain the current robot id and its RING index, id1 contain the matched robot id and its RING index       
-            Loop_msg.id0 = robotid_to_key(robotid_current) + idx_current + 1
-            Loop_msg.id1 = robotid_to_key(robotid_candidate) + idx_matched + 1
+            # convert to the lidar coordinate (x: forward, y: left, z: upward)
+            trans_x_lidar = -trans_x_bev
+            trans_y_lidar = -trans_y_bev
 
-            # !!! convert the pointcloud transformation matrix to the frame transformation matrix
-            loop_transform = np.linalg.inv(loop_transform)
+            # 初始位姿估计
+            init_pose = np.linalg.inv(getSE3(trans_x_lidar, trans_y_lidar, rot_yaw))
+            print("Estimated translation: x: {}, y: {}, rotation: {}".format(trans_x_lidar, trans_y_lidar, rot_yaw))
 
-            # convert the transform matrix to the format of position and orientation
-            pose = get_pose_msg_from_homo_matrix(loop_transform)
-            Loop_msg.pose = pose
-            line = [robotid_current, idx_current, robotid_candidate, idx_matched, pose.position.x, pose.position.y, pose.position.z, pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w]
-            line = ' '.join(str(i) for i in line)
-            f.write(line)
-            f.write("\n")
-            Loop_msgs.Loops.append(Loop_msg)
-            pub.publish(Loop_msgs)      
-            print("Loop detected between id ", Loop_msg.id0, " and id ", Loop_msg.id1)          
-        else:
-            print("\033[31mICP fitness score is larger than threshold, reject the loop.\033[0m")
+            # 执行ICP配准
+            times = time.time()
+            icp_fitness_score, loop_transform = fast_gicp(
+                pc_current, pc_matched, max_correspondence_distance=cfg.icp_max_distance, init_pose=init_pose
+            )
+            timee = time.time()
+
+            print("ICP fitness score:", icp_fitness_score)              
+            print("ICP processed time:", timee - times, 's')
+
+
+            # 判断ICP结果是否满足阈值条件
+            if icp_fitness_score < cfg.icp_fitness_score:
+                print("\033[32mICP fitness score is less than threshold, accept the loop.\033[0m")
+                Loop_msgs = Loops()
+                Loop_msg = Loop()
+
+                # 保存回环检测结果
+                # Loop_msg.id0 = idx_current + 1
+                # Loop_msg.id1 = idx_matched + 1
+                Loop_msg.id0 = robotid_to_key(0) + idx_current + 1
+                Loop_msg.id1 = robotid_to_key(0) + idx_matched + 1
+
+                loop_transform = np.linalg.inv(loop_transform)
+                pose = get_pose_msg_from_homo_matrix(loop_transform)
+                Loop_msg.pose = pose
+                Loop_msgs.Loops.append(Loop_msg)
+
+                pub_loop.publish(Loop_msgs)
+                print("Loop detected between id ", Loop_msg.id0, " and id ", Loop_msg.id1)          
+            else:
+                print("\033[31mICP fitness score is larger than threshold, reject the loop.\033[0m")
 
 
 def callback1(data):
-    # current robot id
-    robotid_current = 0
-    # current robot index
-    idx_current = len(PC1)
-    # current robot timestamp
-    timestamp = data.keyframePC.header.stamp
-    # print(timestamp, timestamp.to_sec())
+    # 记录回调开始时间
+    start_time = time.time()
 
-    # get the keyframe point cloud
+    # 当前帧的索引
+    idx_current = len(PC1)
+    
+    # 当前帧点云数据处理
     pc = pc2.read_points(data.keyframePC, skip_nans=True, field_names=("x", "y", "z"))
     pc_list = []
     for p in pc:
-        pc_list.append([p[0],p[1],p[2]])
+        pc_list.append([p[0], p[1], p[2]])
 
-    # convert the point cloud to o3d point cloud
+    # 转换为 Open3D 点云对象并下采样
     pcd = o3d.geometry.PointCloud()
     pcd.points = o3d.utility.Vector3dVector(pc_list)
     pcd = pcd.voxel_down_sample(voxel_size=0.2)
@@ -254,131 +249,87 @@ def callback1(data):
     pc_normalized = load_pc_infer(pcd.points)
     pc = np.asarray(pcd.points)
 
-    # get the pose of the keyframe point cloud 
-    # convert position and quaternion pose to se3 matrix
+    # 获取当前帧位姿
     se3 = get_homo_matrix_from_pose_msg(data.pose)
 
-    # generate RING and TIRING descriptors
+    # # 应用位姿变换到点云
+    # pc_transformed = apply_pose_to_pointcloud(pc, se3)
+
+    # # 将变换后的点云更新到 pcd 中
+    # pcd.points = o3d.utility.Vector3dVector(pc_transformed)
+
+    # # 将变换后的点云发布
+    # pc_msg = pcl_to_ros(pcd)  # 使用变换后的Open3D点云
+    # pub_cloud.publish(pc_msg)  # 发布点云消息
+
+    # 生成当前帧的 RING 和 TIRING 描述子
     times = time.time()
     pc_bev, pc_RING, pc_TIRING = generate_RINGplusplus(pc_normalized)
     timee = time.time()
     print("Descriptors generated time:", timee - times, 's')
+    
+    
+    # 如果历史帧数量不足，跳过回环检测
+    print("loop detection")
+    detect_loop_icp(idx_current, pc, pc_bev, pc_TIRING, PC1, BEV1, TIRING1)
 
-    # detect the loop and apply icp
-    # candidate robot id: 1
-    # robotid_candidate = 0
-    # detect_loop_icp(robotid_current, idx_current, pc, pc_TIRING, robotid_candidate, PC1, BEV1, TIRING1)
-    # candidate robot id: 2
-    robotid_candidate = 1
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC2, BEV2, TIRING2)
-    # candidate robot id: 3
-    robotid_candidate = 2
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC3, BEV3, TIRING3)
-
+    # 保存当前帧数据
     Pose1.append(se3)
-    Time1.append(timestamp)
+    Time1.append(data.keyframePC.header.stamp)
     PC1.append(pc)
     TIRING1.append(pc_TIRING)
     BEV1.append(pc_bev)
 
-def callback2(data):
-    # current robot id
-    robotid_current = 1
-    # current robot index
-    idx_current = len(PC2)
-    # current robot timestamp
-    timestamp = data.keyframePC.header.stamp
 
-    # get the keyframe point cloud
-    pc = pc2.read_points(data.keyframePC, skip_nans=True, field_names=("x", "y", "z"))
-    pc_list = []
-    for p in pc:
-        pc_list.append([p[0],p[1],p[2]])
+    # 记录回调结束时间
+    end_time = time.time()
+
+    # 输出回调函数时长
+    callback_duration = end_time - start_time
+    print(f"Callback duration: {callback_duration:.4f} seconds")
+
+def apply_pose_to_pointcloud(pc, se3):
+    """
+    将位姿应用到点云坐标系。
     
-    # convert the point cloud to o3d point cloud
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(pc_list)
-    pcd = pcd.voxel_down_sample(voxel_size=0.2)
+    pc: 点云数组 [N, 3]
+    se3: 4x4 同质变换矩阵
+    
+    返回应用位姿后的点云
+    """
+    # 将点云转换为齐次坐标形式 [N, 4]
+    ones = np.ones((pc.shape[0], 1))
+    pc_homogeneous = np.hstack((pc, ones))
 
-    pc_normalized = load_pc_infer(pcd.points)
-    pc = np.asarray(pcd.points)
+    # 使用矩阵相乘变换点云
+    pc_transformed_homogeneous = pc_homogeneous @ se3.T  # 注意这里是 se3.T，因为 PCL 采用右乘方式
+    pc_transformed = pc_transformed_homogeneous[:, :3]  # 去掉最后一列（齐次坐标）
 
-    # get the pose of the keyframe point cloud 
-    # convert position and quaternion pose to se3 matrix
-    se3 = get_homo_matrix_from_pose_msg(data.pose)
-
-    # generate RING and TIRING descriptors
-    times = time.time()
-    pc_bev, pc_RING, pc_TIRING = generate_RINGplusplus(pc_normalized)
-    timee = time.time()
-    print("Descriptors generated time:", timee - times, 's')
-
-    # detect the loop and apply icp
-    # candidate robot id: 1
-    robotid_candidate = 0
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC1, BEV1, TIRING1)
-    # candidate robot id: 2
-    # robotid_candidate = 1
-    # detect_loop_icp(robotid_current, idx_current, pc, pc_TIRING, robotid_candidate, PC2, RING2, BEV2, TIRING2)
-    # candidate robot id: 3
-    robotid_candidate = 2
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC3, BEV3, TIRING3)
-
-    Pose2.append(se3)
-    Time2.append(timestamp)
-    PC2.append(pc)
-    TIRING2.append(pc_TIRING)
-    BEV2.append(pc_bev)
+    return pc_transformed
 
 
-def callback3(data):
-    # current robot id
-    robotid_current = 2
-    # current robot index
-    idx_current = len(PC3)
-    # current robot timestamp
-    timestamp = data.keyframePC.header.stamp
+def pcl_to_ros(pcd):
+    # 将Open3D点云转换为ROS PointCloud2消息
+    pc_ros = sensor_msgs.PointCloud2()
+    pc_ros.header.stamp = rospy.Time.now()
+    pc_ros.header.frame_id = "base_link"  # 根据需要调整frame_id
 
-    # get the keyframe point cloud
-    pc = pc2.read_points(data.keyframePC, skip_nans=True, field_names=("x", "y", "z"))
-    pc_list = []
-    for p in pc:
-        pc_list.append([p[0],p[1],p[2]])
+    # 转换 Open3D 点云到 ROS PointCloud2 格式
+    pc_data = np.asarray(pcd.points)
+    pc_ros.height = 1
+    pc_ros.width = len(pc_data)
+    pc_ros.fields = [
+        sensor_msgs.PointField(name="x", offset=0, datatype=sensor_msgs.PointField.FLOAT32, count=1),
+        sensor_msgs.PointField(name="y", offset=4, datatype=sensor_msgs.PointField.FLOAT32, count=1),
+        sensor_msgs.PointField(name="z", offset=8, datatype=sensor_msgs.PointField.FLOAT32, count=1),
+    ]
+    pc_ros.is_bigendian = False
+    pc_ros.point_step = 12
+    pc_ros.row_step = pc_ros.point_step * pc_ros.width
+    pc_ros.is_dense = True
+    pc_ros.data = pc_data.astype(np.float32).tobytes()
 
-    # convert the point cloud to o3d point cloud
-    pcd = o3d.geometry.PointCloud()
-    pcd.points = o3d.utility.Vector3dVector(pc_list)
-    pcd = pcd.voxel_down_sample(voxel_size=0.2)
-
-    pc_normalized = load_pc_infer(pcd.points)
-    pc = np.asarray(pcd.points)
-
-    # get the pose of the keyframe point cloud 
-    # convert position and quaternion pose to se3 matrix
-    se3 = get_homo_matrix_from_pose_msg(data.pose)
-
-    # generate RING and TIRING descriptors
-    times = time.time()
-    pc_bev, pc_RING, pc_TIRING = generate_RINGplusplus(pc_normalized)
-    timee = time.time()
-    print("Descriptors generated time:", timee - times, 's')
-
-    # detect the loop and apply icp
-    # candidate robot id: 1
-    robotid_candidate = 0
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC1, BEV1, TIRING1)
-    # candidate robot id: 2
-    robotid_candidate = 1
-    detect_loop_icp(robotid_current, idx_current, pc, pc_bev, pc_TIRING, robotid_candidate, PC2, BEV2, TIRING2)
-    # candidate robot id: 3
-    # robotid_candidate = 2
-    # detect_loop_icp(robotid_current, idx_current, pc, pc_TIRING, robotid_candidate, PC3, BEV3, TIRING3)
-
-    Pose3.append(se3)
-    Time3.append(timestamp)
-    PC3.append(pc)
-    TIRING3.append(pc_TIRING)
-    BEV3.append(pc_bev)
+    return pc_ros
 
 
 if __name__ == "__main__":
@@ -420,10 +371,8 @@ if __name__ == "__main__":
     #### ros
     rospy.init_node('LoopDetection', anonymous=True)
     print("Ready to publish detected loops")
-    pub = rospy.Publisher('/loop_info', Loops, queue_size=10)
+    pub_loop = rospy.Publisher('/loop_info', Loops, queue_size=10)
+    pub_cloud = rospy.Publisher('/processed_point_cloud', sensor_msgs.PointCloud2, queue_size=10)
     rospy.Subscriber("/robot_1/submap", SubMap, callback1)
-    rospy.Subscriber("/robot_2/submap", SubMap, callback2)
-    rospy.Subscriber("/robot_3/submap", SubMap, callback3)
     rospy.spin()
     f.close()
-    

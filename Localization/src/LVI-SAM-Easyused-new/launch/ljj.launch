@@ -1,0 +1,16 @@
+<launch>
+	<!-- Lidar odometry param -->
+	<rosparam file="$(find lvi_sam)/config/ljj_lidar.yaml" command="load" />
+	<!-- VINS config -->
+	<param name="vins_config_file" type="string" value="$(find lvi_sam)/config/ljj_camera.yaml" />
+    <!-- Image conversion -->
+	<node pkg="image_transport" type="republish" name="republish" args="compressed in:=/camera/image_raw raw out:=/camera/image_raw" output="screen" respawn="true" />
+
+
+    <!--- Robot State TF -->
+    <include file="$(find lvi_sam)/launch/include/module_robot_state_publisher.launch" />
+    <!--- Run Rviz-->
+    <include file="$(find lvi_sam)/launch/include/module_rviz.launch" />
+    <!--- SAM -->
+    <include file="$(find lvi_sam)/launch/include/module_sam.launch" />
+</launch>
